@@ -11,7 +11,7 @@ import android.view.View;
  * OneUI-system-update-style two-segment progress bar.
  * Left segment: exploit run progress (0..100%), labeled with the percentage.
  * Right segment: verification step (fills during cleanup), labeled
- * "Verification" while running, then "Verified" / "Failed".
+ * "验证中" while running, then "Verified" / "Failed".
  */
 public class TwoStepProgressView extends View {
 
@@ -30,8 +30,8 @@ public class TwoStepProgressView extends View {
 
     private float seg1 = 0f;
     private float seg2 = 0f;
-    private String leftLabel = "Waiting";
-    private String rightLabel = "Verification";
+    private String leftLabel = "等待中";
+    private String rightLabel = "验证中";
     private int rightColor = 0xFF8E8E8E;
     private boolean failed;
     private float greyMix = 0f;
@@ -55,7 +55,7 @@ public class TwoStepProgressView extends View {
         seg2 = clamp(p);
         rightLabel = label;
         rightColor = labelColor;
-        if ("Verified".equals(label) && seg1 >= 1f) {
+        if ("已验证".equals(label) && seg1 >= 1f) {
             scheduleGreyOut();
         } else {
             cancelGreyOut();
@@ -73,8 +73,8 @@ public class TwoStepProgressView extends View {
     public void reset() {
         cancelGreyOut();
         failed = false;
-        setSeg1(0f, "Waiting");
-        setSeg2(0f, "Verification", 0xFFFFFFFF);
+        setSeg1(0f, "等待中");
+        setSeg2(0f, "验证中", 0xFFFFFFFF);
     }
 
     /** When the bar reaches 100% + Verified, ease the fill from blue to grey

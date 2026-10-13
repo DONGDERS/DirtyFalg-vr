@@ -51,6 +51,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
     private boolean runArmed;
     private boolean advancedLog;
     private boolean expertMode;
+    private boolean vrRefresh;
     private String exploitPhase = "";
     private int cleanupSteps;
     private float seg1;
@@ -83,7 +84,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
 
     /** The card keys as they are written to dfroot_ui, in the shipped order.
      *  "sumanager" is first and is the one card that can never be hidden. */
-    private static final String[] CARD_KEYS = {"sumanager", "autorun", "modules", "log"};
+    private static final String[] CARD_KEYS = {"sumanager", "autorun", "modules", "vr", "log"};
     /** Hide button per card, index-parallel to CARD_KEYS. They live in the root
      *  layout, not inside the cards: MaterialCardView clips its children to the
      *  rounded outline, and the badge has to straddle the card's top-left edge. */
@@ -229,7 +230,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         }
         if (t.equals("ksud start: SUCCESS")) {
             setSeg1(1f);
-            setSeg2(1f, "Verified", 0xFFFFFFFF);
+            setSeg2(1f, "已验证", 0xFFFFFFFF);
         }
         if (exploitPhase.equals("cleanup") && t.startsWith("restoring")) {
             cleanupSteps++;
@@ -275,7 +276,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         boolean hasRun = logBuffer.length() > 0
                 || (lastLogFile != null && lastLogFile.exists());
         // The log lives under its own card, so a collapsed card takes the log
-        // with it - "Reset layout" brings both back.
+        // with it - "重置卡片布局" brings both back.
         logAllowed = advancedLog && hasRun && !hiddenCards.contains("log");
         // VIS4: the log hangs off the advanced-log card, so the window the stack
         // keeps for it follows the log. The stack then does the placing - the
@@ -477,12 +478,35 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                 .getBoolean("disable_modules", false));
         moduleRefresh = false;
         binding.modulesSubtitle.setText(binding.switchModules.isChecked()
-                ? "Enabled - Active at next reroot"
-                : "Disabled - No Modules on reroot");
+                ? "已启用 - 下次提权生效"
+                : "已禁用 - 下次提权不加载模块");
         binding.switchModules.setOnCheckedChangeListener((btn, on) -> {
             if (moduleRefresh) return;
             btn.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             applyModuleState(on);
+        });
+
+        // ---- Vr disarm (W1c): toggle + funcs offset input ----------------
+        // The offset is device-specific (e.g. GhostLock's extractor prints 72
+        // = 0x48 for the 6.6.89-android15-8 profile). Saved as a raw string;
+        // validity is enforced live in saveVrOffset().
+        vrRefresh = true;
+        SharedPreferences vrSp = mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE);
+        binding.switchVr.setChecked(vrSp.getBoolean("vr_disarm", false));
+        binding.vrOffsetInput.setText(vrSp.getString("vr_off", "72"));
+        applyVrState(binding.switchVr.isChecked(), false);
+        vrRefresh = false;
+        binding.switchVr.setOnCheckedChangeListener((btn, on) -> {
+            if (vrRefresh) return;
+            btn.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            applyVrState(on, true);
+        });
+        binding.vrOffsetInput.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) {
+                if (!vrRefresh) saveVrOffset(s.toString());
+            }
+            @Override public void afterTextChanged(android.text.Editable s) {}
         });
 
         // Force real bold (wght 700) One UI Sans on the toolbar title TextView.
@@ -556,25 +580,25 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                 && last.toLowerCase().contains("=== exploit failed");
         if (rootedNow || lastSuccess) {
             binding.twoStep.setSeg1(1f, "100%");
-            binding.twoStep.setSeg2(1f, "Verified", 0xFFFFFFFF);
+            binding.twoStep.setSeg2(1f, "已验证", 0xFFFFFFFF);
         } else if (lastFailed) {
             setFailedState();
         }
 
         binding.btnRun.setOnClickListener(v -> {
             if (running) return;
-            // Two-tap confirmation: first tap arms ("Are you sure"), second runs.
+            // Two-tap confirmation: first tap arms ("再按一次确认"), second runs.
             if (!runArmed) {
                 runArmed = true;
                 v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                binding.btnRun.setText("Are you sure");
+                binding.btnRun.setText("再按一次确认");
                 return;
             }
             runArmed = false;
             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             running = true;
             binding.btnRun.setEnabled(false);
-            binding.btnRun.setText("Running");
+            binding.btnRun.setText("执行中");
             // Same dark greyed-out styling as the Rooted state.
             binding.btnRun.setTextColor(0xFF6E6E6E);
             binding.btnRun.setBackgroundTintList(ColorStateList.valueOf(0xFF1F1F1F));
@@ -633,7 +657,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             // -- Github Page row --
             TextView ghRow = new TextView(this);
             ghRow.setBackgroundResource(R.drawable.menu_row_highlight);
-            ghRow.setText("Github Page");
+            ghRow.setText("GitHub 页面");
             ghRow.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
             ghRow.setPadding((int) (20 * md), 0, 0, 0);
             ghRow.setTextColor(0xFFE8E8E8);
@@ -651,7 +675,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             exRow.setPadding((int) (20 * md), 0, 0, 0);
             TextView exText = new TextView(this);
             exRow.setBackgroundResource(R.drawable.menu_row_highlight);
-            exText.setText("Expert Mode");
+            exText.setText("专家模式");
             exText.setTextColor(0xFFE8E8E8);
             exText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15);
             exRow.addView(exText);
@@ -684,7 +708,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             //    user hid. --
             TextView rlRow = new TextView(this);
             rlRow.setBackgroundResource(R.drawable.menu_row_highlight);
-            rlRow.setText("Reset layout");
+            rlRow.setText("重置卡片布局");
             rlRow.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
             rlRow.setPadding((int) (20 * md), 0, 0, 0);
             rlRow.setTextColor(0xFFE8E8E8);
@@ -797,8 +821,8 @@ public class MainActivity extends AppCompatActivity implements IReporter {
      *  disabled toggles, titles suffixed with (Expert). */
     private void applyExpertMode() {
         boolean ok = expertMode;
-        binding.tvAutorunTitle.setText(ok ? "Autorun" : "Autorun (Expert)");
-        binding.tvRebootTitle.setText(ok ? "Auto reboot" : "Auto reboot (Expert)");
+        binding.tvAutorunTitle.setText(ok ? "开机自启" : "开机自启 (专家)");
+        binding.tvRebootTitle.setText(ok ? "自动软重启" : "自动软重启 (专家)");
         binding.tvAutorunTitle.setTextColor(ok ? 0xFFFFFFFF : 0xFF6E6E6E);
         binding.tvAutorunDesc.setTextColor(ok ? 0xFF9E9E9E : 0xFF5A5A5A);
         binding.tvRebootTitle.setTextColor(ok ? 0xFFFFFFFF : 0xFF6E6E6E);
@@ -817,6 +841,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             case "sumanager": return binding.cardSuManager;
             case "autorun": return binding.cardBoot;
             case "modules": return binding.cardModules;
+            case "vr": return binding.cardVr;
             case "log": return binding.cardLog;
             default: return null;
         }
@@ -904,7 +929,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             b.setImageTintList(ColorStateList.valueOf(0xFF3A3A3C));
             b.setScaleType(android.widget.ImageView.ScaleType.CENTER);
             b.setPadding(0, 0, 0, 0);
-            b.setContentDescription("Hide card");
+            b.setContentDescription("隐藏卡片");
             // Above the lifted card (18dp), below the menu dim layer (30dp).
             b.setElevation(26 * md);
             b.setVisibility(View.GONE);
@@ -1038,7 +1063,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
     }
 
     /** VIS1.4: collapse a card out of the stack for good. The SU Manager card
-     *  refuses to be hidden (RULES 3); "Reset layout" brings the rest back. */
+     *  refuses to be hidden (RULES 3); "重置卡片布局" brings the rest back. */
     private void hideCard(DraggableCardView card) {
         String key = keyForCard(card);
         if (key == null || !card.isHideable() || hiddenCards.contains(key)) return;
@@ -1071,7 +1096,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         // stack puts it there on the next frame.
         updateLogVisibility();
         saveCardLayout();
-        Toast.makeText(this, "Card layout reset", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "卡片布局已重置", Toast.LENGTH_SHORT).show();
     }
 
     /** Write the stack order and the hidden flags to dfroot_ui. */
@@ -1117,6 +1142,49 @@ public class MainActivity extends AppCompatActivity implements IReporter {
      *  `disable` flag file in every installed module before it starts ksud
      *  (a broken module otherwise bootloops the device). OFF = modules stay
      *  disabled on the next root, ON = modules load. No su required. */
+    /** Vr disarm (W1c): expand the funcs-offset input while the switch is on
+     *  and keep the prefs flag in step. animate=false during initial setup. */
+    private void applyVrState(boolean on, boolean animate) {
+        SharedPreferences sp = mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE);
+        sp.edit().putBoolean("vr_disarm", on).apply();
+        binding.vrSubtitle.setText(on
+                ? "开启 - 提权时零写 funcs 拆除探针（拉起管理器前）"
+                : "关闭 - 不动 sys_exit 探针");
+        if (animate) {
+            binding.vrOffsetInput.animate().cancel();
+            if (on) {
+                binding.vrOffsetInput.setAlpha(0f);
+                binding.vrOffsetInput.setVisibility(View.VISIBLE);
+                binding.vrOffsetInput.animate().alpha(1f).setDuration(150).start();
+            } else {
+                binding.vrOffsetInput.animate().alpha(0f).setDuration(120)
+                        .withEndAction(() -> binding.vrOffsetInput.setVisibility(View.GONE))
+                        .start();
+            }
+        } else {
+            binding.vrOffsetInput.setVisibility(on ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    /** Parses "72" / "0x48" / "0X48" (> 0, < 2^31) and persists the raw text.
+     *  Invalid input turns the text red and keeps the last valid value. */
+    private void saveVrOffset(String text) {
+        String t = text.trim();
+        boolean valid;
+        try {
+            boolean hex = t.startsWith("0x") || t.startsWith("0X");
+            long v = Long.parseLong(hex ? t.substring(2) : t, hex ? 16 : 10);
+            valid = v > 0 && v < (1L << 31);
+        } catch (Exception e) {
+            valid = false;
+        }
+        binding.vrOffsetInput.setTextColor(valid ? 0xFFFFFFFF : 0xFFE57373);
+        if (valid) {
+            mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE)
+                    .edit().putString("vr_off", t).apply();
+        }
+    }
+
     private void applyModuleState(boolean on) {
         SharedPreferences sp = mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE);
         SharedPreferences.Editor ed = sp.edit();
@@ -1124,11 +1192,11 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         else ed.putBoolean("disable_modules", true);
         ed.apply();
         binding.modulesSubtitle.setText(on
-                ? "Enabled - Active at next reroot"
-                : "Disabled - No Modules on reroot");
+                ? "已启用 - 下次提权生效"
+                : "已禁用 - 下次提权不加载模块");
         Toast.makeText(this,
-                on ? "KSU modules enabled - applies at next root"
-                        : "KSU modules disabled - applies at next root",
+                on ? "KSU 模块已启用 - 下次提权生效"
+                        : "KSU 模块已禁用 - 下次提权生效",
                 Toast.LENGTH_SHORT).show();
     }
 
@@ -1179,7 +1247,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             if (suManagerPkg == null) sp.edit().remove("su_manager").apply();
         }
         binding.suManagerSubtitle.setText(suManagerPkg == null
-                ? "Not selected - required"
+                ? "未选择 - 必需"
                 : suManagerLabel + "  (" + suManagerPkg + ")");
         binding.suManagerSubtitle.setTextColor(suManagerPkg == null
                 ? 0xFFE57373 : 0xFF9E9E9E);
@@ -1199,7 +1267,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
 
         if (apps.isEmpty()) {
             TextView none = new TextView(this);
-            none.setText("No app with libksud.so found");
+            none.setText("未发现带 libksud.so 的应用");
             none.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
             none.setPadding((int) (20 * md), (int) (12 * md), (int) (20 * md), (int) (12 * md));
             none.setTextColor(0xFF6E6E6E);
@@ -1326,7 +1394,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         }
         boolean ok = suManagerPkg != null;
         binding.btnRun.setEnabled(ok);
-        binding.btnRun.setText("Run exploit");
+        binding.btnRun.setText("开始提权");
         binding.btnRun.setTextColor(ok ? 0xFFE0E0E0 : 0xFF6E6E6E);
         binding.btnRun.setBackgroundTintList(ColorStateList.valueOf(ok ? 0xFF7A7A7A : 0xFF1F1F1F));
         ((com.google.android.material.button.MaterialButton) binding.btnRun)
@@ -1388,17 +1456,17 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         }
     }
 
-    /** Failure presentation: left bar label "Failure", right label "Reboot",
+    /** Failure presentation: left bar label "失败", right label "请重启",
      *  bars + labels red, run pill greyed out like the Running/Rooted state.
      *  The pill stays disabled because the vendor patch is page-cache only:
      *  retrying without rebooting would fail the same way. */
     private void setFailedState() {
         failedRun = true;
         binding.twoStep.setFailed(true);
-        binding.twoStep.setSeg1(seg1, "Failure");
-        binding.twoStep.setSeg2(1f, "Reboot", 0xFFE57373);
+        binding.twoStep.setSeg1(seg1, "失败");
+        binding.twoStep.setSeg2(1f, "请重启", 0xFFE57373);
         binding.btnRun.setEnabled(false);
-        binding.btnRun.setText("Run exploit");
+        binding.btnRun.setText("开始提权");
         binding.btnRun.setTextColor(0xFF6E6E6E);
         binding.btnRun.setBackgroundTintList(ColorStateList.valueOf(0xFF1F1F1F));
         ((com.google.android.material.button.MaterialButton) binding.btnRun)
@@ -1415,7 +1483,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         int bg = (rooted || !ok) ? 0xFF1F1F1F : 0xFF7A7A7A;
         int stroke = (rooted || !ok) ? 0xFF1F1F1F : 0xFFA6A6A6;
         binding.btnRun.setEnabled(ok);
-        binding.btnRun.setText(rooted ? "Rooted" : "Run exploit");
+        binding.btnRun.setText(rooted ? "已 Root" : "开始提权");
         binding.btnRun.setTextColor(fg);
         binding.btnRun.setBackgroundTintList(ColorStateList.valueOf(bg));
         ((com.google.android.material.button.MaterialButton) binding.btnRun)
@@ -1558,7 +1626,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
      *  hardcoded package list that no longer matches reality. */
     private void openKsu() {
         if (suManagerPkg == null) {
-            Toast.makeText(this, "No SU manager selected", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "未选择 SU 管理器", Toast.LENGTH_SHORT).show();
             return;
         }
         Intent launch = getPackageManager().getLaunchIntentForPackage(suManagerPkg);
@@ -1636,7 +1704,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                 boolean rooted = new File("/dev/df").exists();
                 if (rooted) {
                     setRootedState(true);
-                    binding.twoStep.setSeg2(1f, "Verified", 0xFFFFFFFF);
+                    binding.twoStep.setSeg2(1f, "已验证", 0xFFFFFFFF);
                 } else {
                     setFailedState();
                     setRootedState(false);
@@ -1650,7 +1718,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (Exception e) {
-            Toast.makeText(this, "No browser found", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "未找到浏览器", Toast.LENGTH_SHORT).show();
         }
     }
 

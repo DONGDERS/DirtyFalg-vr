@@ -31,7 +31,7 @@
                 android:layout_gravity="end|center_vertical"
                 android:layout_marginEnd="16dp"
                 android:background="@drawable/bg_circle"
-                android:contentDescription="Menu"
+                android:contentDescription="菜单"
                 android:scaleType="center"
                 android:src="@drawable/ic_more" />
 
@@ -107,7 +107,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="SU Manager"
+                    android:text="SU 管理器"
                     android:textColor="#FFFFFFFF"
                     android:textSize="16sp" />
 
@@ -115,7 +115,7 @@
                     android:id="@+id/suManagerSubtitle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Not selected - required"
+                    android:text="未选择 - 必需"
                     android:textColor="#FF9E9E9E"
                     android:textSize="12sp" />
 
@@ -126,7 +126,7 @@
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_gravity="center_vertical"
-                android:contentDescription="Select"
+                android:contentDescription="选择"
                 android:src="@drawable/ic_chevron" />
 
         </LinearLayout>
@@ -169,7 +169,7 @@
                         android:id="@+id/tvAutorunTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Autorun"
+                        android:text="开机自启"
                         android:textColor="#FFFFFFFF"
                         android:textSize="16sp" />
 
@@ -177,7 +177,7 @@
                         android:id="@+id/tvAutorunDesc"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Runs the exploit after boot"
+                        android:text="开机后自动执行提权"
                         android:textColor="#FF9E9E9E"
                         android:textSize="12sp" />
 
@@ -209,7 +209,7 @@
                         android:id="@+id/tvRebootTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Auto reboot"
+                        android:text="自动软重启"
                         android:textColor="#FFFFFFFF"
                         android:textSize="16sp" />
 
@@ -217,7 +217,7 @@
                         android:id="@+id/tvRebootDesc"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Soft reboots after root"
+                        android:text="Root 成功后软重启"
                         android:textColor="#FF9E9E9E"
                         android:textSize="12sp" />
 
@@ -265,7 +265,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="KernelSU Modules"
+                    android:text="KernelSU 模块"
                     android:textColor="#FFFFFFFF"
                     android:textSize="16sp" />
 
@@ -273,7 +273,7 @@
                     android:id="@+id/modulesSubtitle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Enabled - active at next reboot"
+                    android:text="已启用 - 下次重启后生效"
                     android:textColor="#FF9E9E9E"
                     android:textSize="12sp" />
 
@@ -285,6 +285,93 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_vertical"
                 android:checked="true" />
+
+        </LinearLayout>
+
+    </df.root.DraggableCardView>
+
+    <!-- Vr disarm (W1c): zero __tracepoint_sys_exit->funcs inside dfroot.ko
+         right before the manager is launched, so vivo's vr.ko exit probe
+         never sees a fresh-root task. The funcs offset is device-specific
+         (parse it from GhostLock's kernel profile / extractor output) and
+         only shows up once the switch is on. -->
+    <df.root.DraggableCardView
+        android:id="@+id/cardVr"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        app:cardBackgroundColor="#FF1C1C1C"
+        app:cardCornerRadius="26dp"
+        app:strokeWidth="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_gravity="center_vertical"
+                    android:orientation="vertical"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp">
+
+                    <TextView
+                        android:id="@+id/vrTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="去除 Vr 探针"
+                        android:textColor="#FFFFFFFF"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:id="@+id/vrSubtitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="关闭 - 不动 sys_exit 探针"
+                        android:textColor="#FF9E9E9E"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+
+                <df.root.OneUiSwitch
+                    android:id="@+id/switchVr"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical" />
+
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/vrOffsetInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="4dp"
+                android:background="@drawable/bg_input_dark"
+                android:hint="funcs 偏移（十进制或 0x 十六进制，如 72 / 0x48）"
+                android:importantForAutofill="no"
+                android:inputType="text"
+                android:maxLength="18"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:textColor="#FFFFFFFF"
+                android:textColorHint="#FF6E6E6E"
+                android:textSize="13sp"
+                android:visibility="gone" />
 
         </LinearLayout>
 
@@ -320,14 +407,14 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Show advanced log"
+                    android:text="显示完整日志"
                     android:textColor="#FFFFFFFF"
                     android:textSize="16sp" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Shows full scrollable log"
+                    android:text="显示可滚动的完整日志"
                     android:textColor="#FF9E9E9E"
                     android:textSize="12sp" />
 
@@ -436,7 +523,7 @@
         android:paddingEnd="28dp"
         android:elevation="12dp"
         android:stateListAnimator="@null"
-        android:text="Run exploit"
+        android:text="开始提权"
         android:textSize="14sp"
         android:backgroundTint="#FF7A7A7A"
         android:textColor="#FFE0E0E0"
@@ -466,7 +553,7 @@
         android:background="@drawable/bg_pill"
         android:backgroundTint="#FF2E2E30"
         android:clickable="true"
-        android:contentDescription="Open SU manager"
+        android:contentDescription="打开 SU 管理器"
         android:elevation="12dp"
         android:enabled="false"
         android:focusable="true"
@@ -488,7 +575,7 @@
             android:layout_gravity="start|center_vertical"
             android:layout_marginStart="22dp"
             android:alpha="0"
-            android:text="Manager"
+            android:text="打开"
             android:textColor="#FF1F1F1F"
             android:textSize="14sp" />
 
@@ -498,7 +585,7 @@
             android:layout_height="20dp"
             android:layout_gravity="end|center_vertical"
             android:layout_marginEnd="17dp"
-            android:contentDescription="Open"
+            android:contentDescription="打开"
             android:src="@drawable/ic_chevron" />
 
     </FrameLayout>
@@ -516,7 +603,7 @@
         android:layout_marginEnd="12dp"
         android:layout_marginBottom="28dp"
         android:background="@drawable/bg_circle_grey_ripple"
-        android:contentDescription="Save log to Downloads"
+        android:contentDescription="保存日志到 Downloads"
         android:elevation="12dp"
         android:padding="0dp"
         android:scaleType="center"
