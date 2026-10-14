@@ -156,7 +156,7 @@ mod jni {
     /// string to keep the native surface trivial to parse.
     #[no_mangle]
     pub extern "system" fn Java_df_root_VrExtractor_nativeProgress<'local>(
-        env: JNIEnv<'local>,
+        mut env: JNIEnv<'local>,
         _class: JClass,
     ) -> JString<'local> {
         let s = format!(
@@ -179,7 +179,7 @@ mod jni {
     /// = app cacheDir, `insecure` = skip TLS verification. Returns JSON.
     #[no_mangle]
     pub extern "system" fn Java_df_root_VrExtractor_nativeDerive<'local>(
-        env: JNIEnv<'local>,
+        mut env: JNIEnv<'local>,
         _class: JClass,
         input: JString<'local>,
         work_dir: JString<'local>,
