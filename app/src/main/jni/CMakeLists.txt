@@ -58,13 +58,19 @@ target_link_options(bootstrap PRIVATE -Wl,-z,max-page-size=16384)
 
 # ---- prebuilt vr offset extractor ------------------------------------------
 # The Rust cdylib is built in an earlier CI step and parked at
-# jniLibs/arm64-v8a/libvrext.so, but AGP 9 doesn't merge that dir into the APK
-# when externalNativeBuild is configured (v1.18 shipped without it). Dropping
-# the file into CMAKE_LIBRARY_OUTPUT_DIRECTORY makes it a CMake build output,
-# which AGP does package. Copied only if the prebuilt exists so local
-# `gradlew` builds without the Rust step keep working.
-if(EXISTS "${JNI_DIR}/../jniLibs/arm64-v8a/libvrext.so")
-  file(COPY_FILE
-       "${JNI_DIR}/../jniLibs/arm64-v8a/libvrext.so"
-       "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libvrext.so")
-endif()
+# jniLibs/arm64-v8a/libvrext.so. AGP 9 packages ONLY declared CMake target
+# outputs (plain jniLibs dirs and file copies into the output dir are both
+# ignored with externalNativeBuild configured - v1.18 shipped without the
+# lib). So: declare a stub shared library named libvrext.so, then let a
+# POST_BUILD step overwrite it with the real prebuilt. AGP packages the
+# declared output path; the content is the extractor.
+add_library(vrext_stub SHARED stub.c)
+set_target_properties(vrext_stub PROPERTIES
+    PREFIX "lib"
+    OUTPUT_NAME "vrext"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+add_custom_command(TARGET vrext_stub POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${JNI_DIR}/../jniLibs/arm64-v8a/libvrext.so"
+            "$<TARGET_FILE:vrext_stub>"
+    COMMENT "Replacing stub with prebuilt libvrext.so")
