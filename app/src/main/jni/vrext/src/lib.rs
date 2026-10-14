@@ -165,9 +165,14 @@ mod jni {
             PROG_DONE.load(Ordering::Relaxed),
             PROG_TOTAL.load(Ordering::Relaxed)
         );
-        env.new_string(s)
-            .map(|j| j.into())
-            .unwrap_or_else(|_| "0 0 0".into())
+        let j = env
+            .new_string(s)
+            .or_else(|_| env.new_string("0 0 0"))
+            .map(JString::from);
+        match j {
+            Ok(v) => v,
+            Err(e) => panic!("jni new_string failed twice: {e}"),
+        }
     }
 
     /// Derive the vr funcs member offset. `input` = path or URL, `work_dir`
@@ -193,8 +198,15 @@ mod jni {
             },
         ));
         let json = derive_json(&input, &work, insecure == 1, progress);
-        env.new_string(json)
-            .map(|s| s.into())
-            .unwrap_or_else(|_| "{\"ok\":false,\"error\":\"jni new_string failed\"}".into())
+        let j = env
+            .new_string(json)
+            .or_else(|_| {
+                env.new_string(r#"{"ok":false,"error":"jni new_string failed"}"#)
+            })
+            .map(JString::from);
+        match j {
+            Ok(v) => v,
+            Err(e) => panic!("jni new_string failed twice: {e}"),
+        }
     }
 }
