@@ -91,6 +91,15 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      - name: Cache cargo (vrext)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/src/main/jni/vrext/target
+          key: vrext-${{ hashFiles('app/src/main/jni/vrext/Cargo.lock') }}-ruststable
+
       - name: Build vr extractor (libvrext.so)
         run: |
           # Ghostlock-vr @423ccb1 = the exact source state of the tested v1.2

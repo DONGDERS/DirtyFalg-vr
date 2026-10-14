@@ -72,6 +72,15 @@ androidComponents {
         }
     }
 
+    sourceSets {
+        getByName("main") {
+            // AGP 9 silently drops the implicit src/main/jniLibs folder when
+            // externalNativeBuild is configured (v1.18 shipped without
+            // libvrext.so). Naming the dir explicitly restores the merge.
+            jniLibs.srcDir("src/main/jniLibs")
+        }
+    }
+
     packaging {
         jniLibs {
             useLegacyPackaging = true
