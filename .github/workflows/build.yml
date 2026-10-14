@@ -120,6 +120,22 @@ jobs:
             ./gradlew :app:assembleRelease
           fi
 
+      - name: Verify APK native libs
+        if: github.event_name != 'pull_request'
+        run: |
+          # v1.18 shipped without libvrext.so: AGP 9 ignored jniLibs with
+          # externalNativeBuild configured. The APK must carry the extractor,
+          # so fail loudly instead of packaging a silent regression.
+          APK=app/build/outputs/apk/release/dirtyfrag.apk
+          if unzip -l "$APK" | grep -q libvrext.so; then
+            echo "libvrext.so present:"
+            unzip -l "$APK" | grep "lib/arm64-v8a"
+          else
+            echo "::error::libvrext.so missing from $APK"
+            unzip -l "$APK" | grep "lib/" || true
+            exit 1
+          fi
+
       - name: Stage release asset
         if: startsWith(github.ref, 'refs/tags/')
         run: |

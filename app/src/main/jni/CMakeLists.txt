@@ -55,3 +55,16 @@ set_target_properties(bootstrap PROPERTIES
     SUFFIX ".so"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 target_link_options(bootstrap PRIVATE -Wl,-z,max-page-size=16384)
+
+# ---- prebuilt vr offset extractor ------------------------------------------
+# The Rust cdylib is built in an earlier CI step and parked at
+# jniLibs/arm64-v8a/libvrext.so, but AGP 9 doesn't merge that dir into the APK
+# when externalNativeBuild is configured (v1.18 shipped without it). Dropping
+# the file into CMAKE_LIBRARY_OUTPUT_DIRECTORY makes it a CMake build output,
+# which AGP does package. Copied only if the prebuilt exists so local
+# `gradlew` builds without the Rust step keep working.
+if(EXISTS "${JNI_DIR}/../jniLibs/arm64-v8a/libvrext.so")
+  file(COPY_FILE
+       "${JNI_DIR}/../jniLibs/arm64-v8a/libvrext.so"
+       "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libvrext.so")
+endif()
