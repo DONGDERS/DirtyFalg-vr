@@ -451,10 +451,10 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         // the title and ignore the toolbar's titleTextAppearance (breaks bold).
         // The toolbar renders its own title via app:titleTextAppearance.
 
-        // Update check (SamSU-style): the pill around the version turns green
-        // when GitHub has a newer release; tapping the title opens the releases
-        // page (only while an update is flagged, so it stays a no-op otherwise).
-        mExec.execute(this::checkForAppUpdate);
+        // Update pill disabled: this build is maintained in the private fork,
+        // so the upstream release check would only ever offer the wrong APK.
+        // The version stays a plain pill; no check, no "Update available".
+        // mExec.execute(this::checkForAppUpdate);
 
         // D2 vault status (Samsung VaultKeeper): Odin flashing allowed or
         // locked. Read-only; non-Samsung devices show "not available".

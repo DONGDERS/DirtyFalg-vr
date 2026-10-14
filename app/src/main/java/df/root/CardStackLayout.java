@@ -11,6 +11,7 @@ import android.view.ViewGroup;
 import android.view.ViewConfiguration;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.OvershootInterpolator;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 
 import java.util.ArrayList;
@@ -380,6 +381,11 @@ public class CardStackLayout extends LinearLayout {
                 // A press that lands between two cards is nobody's: it carries on
                 // to the log behind the stack, so the gaps still scroll it.
                 if (cardAt(x, y) == null) return false;
+                // A press on an editable field belongs to the IME pipeline, not
+                // to the tap replay: the synthetic DOWN/UP pair the replay sends
+                // fires clicks but never opens the keyboard. Let it through
+                // untouched, the way the hide badge is.
+                if (hitsEditable(x, y)) return false;
                 // Take the press. Passing it to the children first is exactly what
                 // broke the SU Manager card: its row consumed the DOWN, the hold
                 // timer lifted the card regardless, and the row then fired the
@@ -535,6 +541,31 @@ public class CardStackLayout extends LinearLayout {
             }
         }
         return null;
+    }
+
+    /**
+     * True when the press lands on a visible EditText anywhere inside the card
+     * under (x, y). Coordinates are converted card-locally at each level so
+     * nested layouts behave exactly like Android's own hit test.
+     */
+    private boolean hitsEditable(float x, float y) {
+        DraggableCardView card = cardAt(x, y);
+        if (card == null) return false;
+        float cx = x - card.getLeft() - card.getTranslationX();
+        float cy = y - card.getTop() - card.getTranslationY();
+        return editableAt(card, cx, cy);
+    }
+
+    private boolean editableAt(ViewGroup group, float x, float y) {
+        for (int i = group.getChildCount() - 1; i >= 0; i--) {
+            View v = group.getChildAt(i);
+            if (v.getVisibility() != VISIBLE) continue;
+            float l = v.getLeft() + v.getTranslationX(), t = v.getTop() + v.getTranslationY();
+            if (x < l || x > l + v.getWidth() || y < t || y > t + v.getHeight()) continue;
+            if (v instanceof EditText) return true;
+            if (v instanceof ViewGroup && editableAt((ViewGroup) v, x - l, y - t)) return true;
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------- drag
