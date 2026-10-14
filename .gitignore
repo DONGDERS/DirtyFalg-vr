@@ -39,3 +39,8 @@ app/src/main/jni/ko/*.ko
 # staged release APK for the GitHub release asset
 /release/
 __pycache__/
+
+# vr offset extractor (Rust cdylib)
+app/src/main/jni/vrext/target/
+# pinned Ghostlock-vr checkout (CI clones it at build time)
+app/src/main/jni/ghostlock-app

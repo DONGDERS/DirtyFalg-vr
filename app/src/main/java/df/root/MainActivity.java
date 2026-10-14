@@ -509,6 +509,10 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             @Override public void afterTextChanged(android.text.Editable s) {}
         });
 
+        // Vr offset extractor (GhostLock-zstd engine, see VrExtractor): pick
+        // an OTA link or a boot.img file and the pipeline fills the input.
+        binding.vrExtractBtn.setOnClickListener(v -> showVrExtractDialog());
+
         // Force real bold (wght 700) One UI Sans on the toolbar title TextView.
         binding.toolbar.post(() -> {
             Typeface base = ResourcesCompat.getFont(this, R.font.inter_vf);
@@ -1150,19 +1154,28 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         binding.vrSubtitle.setText(on
                 ? "开启 - 提权时零写 funcs 拆除探针（拉起管理器前）"
                 : "关闭 - 不动 sys_exit 探针");
+        View extractBtn = binding.vrExtractBtn;
         if (animate) {
             binding.vrOffsetInput.animate().cancel();
+            extractBtn.animate().cancel();
             if (on) {
                 binding.vrOffsetInput.setAlpha(0f);
                 binding.vrOffsetInput.setVisibility(View.VISIBLE);
                 binding.vrOffsetInput.animate().alpha(1f).setDuration(150).start();
+                extractBtn.setAlpha(0f);
+                extractBtn.setVisibility(View.VISIBLE);
+                extractBtn.animate().alpha(1f).setDuration(150).start();
             } else {
                 binding.vrOffsetInput.animate().alpha(0f).setDuration(120)
                         .withEndAction(() -> binding.vrOffsetInput.setVisibility(View.GONE))
                         .start();
+                extractBtn.animate().alpha(0f).setDuration(120)
+                        .withEndAction(() -> extractBtn.setVisibility(View.GONE))
+                        .start();
             }
         } else {
             binding.vrOffsetInput.setVisibility(on ? View.VISIBLE : View.GONE);
+            extractBtn.setVisibility(on ? View.VISIBLE : View.GONE);
         }
     }
 
@@ -1182,6 +1195,172 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         if (valid) {
             mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE)
                     .edit().putString("vr_off", t).apply();
+        }
+    }
+
+    // --------------------------------------------------- vr offset extractor
+
+    private static final int REQ_VR_FILE = 0x5752;
+    /** Guard: only one derive at a time (the poller stops on it, too). */
+    private volatile boolean vrExtractRunning;
+    private int vrLastLoggedMark = -1;
+
+    private final Runnable vrProgressTick = new Runnable() {
+        @Override public void run() {
+            if (!vrExtractRunning) return;
+            try {
+                String[] p = VrExtractor.nativeProgress().trim().split(" ");
+                int phase = Integer.parseInt(p[0]);
+                long done = Long.parseLong(p[1]), total = Long.parseLong(p[2]);
+                if (total > 0) {
+                    int mark = vrLastLoggedMark;
+                    String line = null;
+                    if (phase == 0) {
+                        int mb = (int) (done >> 20), totMb = (int) (total >> 20);
+                        if (mb != mark) line = "extract: 下载 " + mb + "/" + totMb + " MB";
+                    } else {
+                        int pct = (int) (done * 100 / total);
+                        if (pct != mark) line = "extract: 解包 " + pct + "%";
+                    }
+                    if (line != null) {
+                        vrLastLoggedMark = phase == 0 ? (int) (done >> 20)
+                                : (int) (done * 100 / total);
+                        appendLog(line);
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            mMain.postDelayed(this, 500);
+        }
+    };
+
+    private void showVrExtractDialog() {
+        if (vrExtractRunning) {
+            Toast.makeText(this, "解析进行中…", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        CharSequence[] items = {"OTA 链接（zip / payload.bin 直链）", "选择本地 boot.img"};
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("解析 Vr 偏移")
+                .setItems(items, (d, which) -> {
+                    if (which == 0) promptVrUrl();
+                    else pickVrFile();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void promptVrUrl() {
+        android.widget.EditText et = new android.widget.EditText(this);
+        et.setHint("https://…（OTA zip 或 payload.bin 直链）");
+        et.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        et.setSingleLine(true);
+        int pad = (int) (getResources().getDisplayMetrics().density * 20);
+        et.setPadding(pad, pad, pad, pad / 2);
+        et.setTextColor(0xFFFFFFFF);
+        et.setText(prefs().getString("vr_ota_url", ""));
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("OTA 链接")
+                .setView(et)
+                .setPositiveButton("解析", (d, w) -> {
+                    String url = et.getText().toString().trim();
+                    if (url.startsWith("http://") || url.startsWith("https://")) {
+                        mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE)
+                                .edit().putString("vr_ota_url", url).apply();
+                        runVrExtract(url);
+                    } else {
+                        Toast.makeText(this, "不是有效的 http(s) 链接",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private SharedPreferences prefs() {
+        return mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE);
+    }
+
+    private void pickVrFile() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("*/*");
+        startActivityForResult(i, REQ_VR_FILE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQ_VR_FILE || resultCode != RESULT_OK
+                || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+        mExec.execute(() -> {
+            try {
+                File out = new File(getCacheDir(), "vr_input.bin");
+                try (java.io.InputStream in = getContentResolver().openInputStream(uri);
+                     FileOutputStream fo = new FileOutputStream(out)) {
+                    byte[] buf = new byte[1 << 20];
+                    int n;
+                    while ((n = in.read(buf)) > 0) fo.write(buf, 0, n);
+                }
+                runVrExtract(out.getAbsolutePath());
+            } catch (Exception e) {
+                mMain.post(() -> appendLog("extract: 读取文件失败 - " + e.getMessage()));
+            }
+        });
+    }
+
+    /** Runs the extractor on the worker thread; logs progress lines and fills
+     *  the funcs-offset input on success. */
+    private void runVrExtract(String input) {
+        if (vrExtractRunning) {
+            mMain.post(() -> appendLog("extract: 已有解析任务在跑"));
+            return;
+        }
+        vrExtractRunning = true;
+        vrLastLoggedMark = -1;
+        boolean url = input.startsWith("http://") || input.startsWith("https://");
+        mMain.post(() -> {
+            appendLog("extract: 开始解析 " + (url ? "OTA 链接" : "本地镜像"));
+            mMain.postDelayed(vrProgressTick, 300);
+        });
+        mExec.execute(() -> {
+            String json;
+            try {
+                json = VrExtractor.nativeDerive(
+                        input, getCacheDir().getAbsolutePath(), false);
+            } catch (Throwable t) {
+                json = "{\"ok\":false,\"error\":\"native: " + t + "\"}";
+            }
+            String j = json;
+            mMain.post(() -> {
+                vrExtractRunning = false;
+                mMain.removeCallbacks(vrProgressTick);
+                handleVrResult(j);
+            });
+        });
+    }
+
+    private void handleVrResult(String json) {
+        try {
+            org.json.JSONObject o = new org.json.JSONObject(json);
+            if (o.optBoolean("ok") && o.optLong("member", -1) > 0) {
+                long member = o.getLong("member");
+                String release = o.optString("release", "?");
+                vrRefresh = true;
+                binding.vrOffsetInput.setText(String.valueOf(member));
+                saveVrOffset(String.valueOf(member));
+                binding.vrOffsetInput.setTextColor(0xFFB9F6CA);
+                vrRefresh = false;
+                appendLog("extract: funcs 偏移=" + member + " (" + release + ")");
+                Toast.makeText(this, "解析成功：funcs 偏移 " + member,
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+            appendLog("extract: 失败 - " + o.optString("error", "未知错误"));
+        } catch (Exception e) {
+            appendLog("extract: 失败 - 返回异常: " + json);
         }
     }
 

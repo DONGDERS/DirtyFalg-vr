@@ -373,6 +373,19 @@
                 android:textSize="13sp"
                 android:visibility="gone" />
 
+            <Button
+                android:id="@+id/vrExtractBtn"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="4dp"
+                android:backgroundTint="#FF2A2A2A"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:text="从 Boot.img / OTA 链接解析偏移"
+                android:textColor="#FF9E9E9E"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
         </LinearLayout>
 
     </df.root.DraggableCardView>

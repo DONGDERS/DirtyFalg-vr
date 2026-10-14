@@ -91,6 +91,27 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      - name: Build vr extractor (libvrext.so)
+        run: |
+          # Ghostlock-vr @423ccb1 = the exact source state of the tested v1.2
+          # release; pinned so offsets are always derived by the audited
+          # extraction code (same tree that produced the 6.6.89 conf with
+          # tracepoint_funcs=72).
+          git clone --quiet https://github.com/DONGDERS/Ghostlock-vr /tmp/ghostlock-app
+          git -C /tmp/ghostlock-app checkout --quiet 423ccb1
+          mkdir -p app/src/main/jni/ghostlock-app/tools
+          cp -a /tmp/ghostlock-app/tools/extract_rs app/src/main/jni/ghostlock-app/tools/extract_rs
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          source "$HOME/.cargo/env"
+          rustup target add aarch64-linux-android
+          "$HOME/.cargo/bin/cargo" install cargo-ndk --locked --quiet
+          cd app/src/main/jni/vrext
+          export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
+          "$HOME/.cargo/bin/cargo" ndk -t arm64-v8a -p 33 build --release --features http
+          mkdir -p ../jniLibs/arm64-v8a
+          cp target/aarch64-linux-android/release/libvrext.so ../jniLibs/arm64-v8a/
+          ls -l ../jniLibs/arm64-v8a/libvrext.so
+
       - name: Build DFRoot APK
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
