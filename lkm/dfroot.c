@@ -151,8 +151,11 @@ static int __nocfi __init dfroot_init(void)
      * this boot. Both survive a later panic; pstore does not on this ROM. */
     snprintf(cmd, sizeof(cmd),
         "touch /dev/dfm0;"
+        " mkdir -p /data/media/0/Download/DirtyFrag;"
         " dmesg > /data/user_de/0/df.root/files/dmesg1.txt 2>&1;"
+        " cp /data/user_de/0/df.root/files/dmesg1.txt /data/media/0/Download/DirtyFrag/ 2>/dev/null;"
         " lsmod > /data/user_de/0/df.root/files/lsmod1.txt 2>&1;"
+        " cp /data/user_de/0/df.root/files/lsmod1.txt /data/media/0/Download/DirtyFrag/ 2>/dev/null;"
         " rmmod oplus_secure_harden 2>/dev/null;"           //
         " rmmod oplus_security_keventupload 2>/dev/null;"   // Oppo/OnePlus
         " rmmod oplus_security_guard 2>/dev/null;"          //

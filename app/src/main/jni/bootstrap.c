@@ -14,6 +14,17 @@
 #define PREFS_PATH "/data/user_de/0/df.root/shared_prefs/dfroot.xml"
 #define MODULES_DIR "/data/adb/modules"
 #define LOG_PATH "/data/user_de/0/df.root/files/boot_run.log"
+#define PUB_DIR "/data/media/0/Download/DirtyFrag"
+
+/* Same line goes to the DE file and the public raw Download dir: after a
+ * panic the device is rootless, and only the public copy is readable. */
+static void pub_copy(const char *src)
+{
+    char cmd[160];
+    snprintf(cmd, sizeof(cmd),
+             "mkdir -p %s; cp %s %s/ 2>/dev/null", PUB_DIR, src, PUB_DIR);
+    system(cmd);
+}
 
 /* Forensic trace: the shellcode exec of this binary is silent-on-failure,
  * so every step we DO reach gets persisted (append + close per line). A
@@ -27,6 +38,7 @@ static void blog(const char *msg)
         write(fd, msg, strlen(msg));
         write(fd, "\n", 1);
         close(fd);
+        pub_copy(LOG_PATH);
     }
 }
 
@@ -35,6 +47,7 @@ static void dmesg_snap(const char *out)
     char cmd[128];
     snprintf(cmd, sizeof(cmd), "dmesg > %s 2>&1", out);
     system(cmd);
+    pub_copy(out);
 }
 
 static int pref_true(const char *buf, const char *key)

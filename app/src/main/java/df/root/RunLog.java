@@ -104,7 +104,8 @@ public final class RunLog {
         if (!externalPending) return;
         externalPending = false;
         StringBuilder sb = new StringBuilder();
-        for (String name : new String[]{PREV_FILE, DE_FILE}) {
+        for (String name : new String[]{PREV_FILE, DE_FILE,
+                "dmesg1.txt", "lsmod1.txt", "dmesg2.txt", "boot_run.log"}) {
             File f = new File(deCtx.getFilesDir(), name);
             if (!f.exists()) continue;
             try (FileInputStream in = new FileInputStream(f)) {
