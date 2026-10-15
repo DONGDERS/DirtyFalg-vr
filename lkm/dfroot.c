@@ -64,7 +64,7 @@ static int __nocfi __init dfroot_init(void)
     // poller picks /dev/dfvr0 and /dev/dfvre up like every other /dev/df*
     // node. /dev is tmpfs, so markers never survive a reboot - same lifetime
     // rules as the dfm* markers.
-    static char cmd[256];
+    static char cmd[512];
     static char *argv[] = { (char *)sh, "-c", cmd, NULL };
 
     // Symbol finder
@@ -144,8 +144,15 @@ static int __nocfi __init dfroot_init(void)
     }
 
     // Run UMH command
+    /* Black-box snapshots: this shell runs as root with SELinux already
+     * permissive, right after the ko's own pr_info lines - so dmesg1.txt
+     * carries the kernel-side ground truth (selinux flip, defex hooks, W1c,
+     * umh ret) and lsmod1.txt pins down whether vr.ko is even present on
+     * this boot. Both survive a later panic; pstore does not on this ROM. */
     snprintf(cmd, sizeof(cmd),
         "touch /dev/dfm0;"
+        " dmesg > /data/user_de/0/df.root/files/dmesg1.txt 2>&1;"
+        " lsmod > /data/user_de/0/df.root/files/lsmod1.txt 2>&1;"
         " rmmod oplus_secure_harden 2>/dev/null;"           //
         " rmmod oplus_security_keventupload 2>/dev/null;"   // Oppo/OnePlus
         " rmmod oplus_security_guard 2>/dev/null;"          //

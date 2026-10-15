@@ -13,6 +13,29 @@
 #define KSUD       "/data/adb/ksud"
 #define PREFS_PATH "/data/user_de/0/df.root/shared_prefs/dfroot.xml"
 #define MODULES_DIR "/data/adb/modules"
+#define LOG_PATH "/data/user_de/0/df.root/files/boot_run.log"
+
+/* Forensic trace: the shellcode exec of this binary is silent-on-failure,
+ * so every step we DO reach gets persisted (append + close per line). A
+ * missing boot_run.log with dmesg1.txt present pins the death to the exec
+ * itself (defex / SELinux / ENOENT); the dmesg snapshot carries the ko's
+ * pr_info ground truth across a panic. */
+static void blog(const char *msg)
+{
+    int fd = open(LOG_PATH, O_WRONLY | O_CREAT | O_APPEND, 0666);
+    if (fd >= 0) {
+        write(fd, msg, strlen(msg));
+        write(fd, "\n", 1);
+        close(fd);
+    }
+}
+
+static void dmesg_snap(const char *out)
+{
+    char cmd[128];
+    snprintf(cmd, sizeof(cmd), "dmesg > %s 2>&1", out);
+    system(cmd);
+}
 
 static int pref_true(const char *buf, const char *key)
 {
@@ -195,38 +218,49 @@ static int disable_modules(void)
 
 int main(void)
 {
+    blog("bootstrap: entered");
+    dmesg_snap("/data/user_de/0/df.root/files/dmesg2.txt");
     touch("/dev/dfm1");
     char su_manager[256];
     int soft_reboot, disable_mods;
     if (read_prefs(su_manager, sizeof(su_manager), &soft_reboot, &disable_mods) != 0) {
+        blog("bootstrap: ERROR - read_prefs failed");
         touch("/dev/dfme0");
         return 1;
     }
+    blog("bootstrap: prefs ok, su_manager read");
 
     touch("/dev/dfm2");
     if (adopt_zygote_env())
         touch("/dev/dfmw0");
+    blog("bootstrap: zygote env done");
 
     touch("/dev/dfm3");
     if (set_partitions_ro())
         touch("/dev/dfmw1");
+    blog("bootstrap: partitions ro done");
 
     if (disable_mods) {
         touch("/dev/dfm4");
         if (disable_modules()) {
+            blog("bootstrap: ERROR - disable modules failed");
             touch("/dev/dfme1");
             return 1;
         }
+        blog("bootstrap: modules disabled");
     }
 
+    blog("bootstrap: starting ksud late-load");
     touch("/dev/dfm5");
     if (run_ctx(NULL, (char *[]){ KSUD_STAGE, "late-load", "--package-name", su_manager, NULL }) == 0) {
+        blog("bootstrap: ksud ok");
         touch("/dev/dfm6");
         if (soft_reboot) {
             while (late_load_running()) sleep(1);
             run_ctx("u:r:ksu:s0", (char *[]){ KSUD, "soft-reboot", NULL });
         }
     } else {
+        blog("bootstrap: ERROR - ksud nonzero exit");
         touch("/dev/dfme2");
     }
 
