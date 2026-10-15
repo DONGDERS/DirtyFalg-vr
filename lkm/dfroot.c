@@ -64,7 +64,7 @@ static int __nocfi __init dfroot_init(void)
     // poller picks /dev/dfvr0 and /dev/dfvre up like every other /dev/df*
     // node. /dev is tmpfs, so markers never survive a reboot - same lifetime
     // rules as the dfm* markers.
-    static char cmd[512];
+    static char cmd[1024];
     static char *argv[] = { (char *)sh, "-c", cmd, NULL };
 
     // Symbol finder
