@@ -111,6 +111,8 @@ public class MainActivity extends AppCompatActivity implements IReporter {
     @Override
     public void report(String msg) {
         Log.i(TAG, msg.trim());
+        // Forensics first, raw and unfiltered, line-synchronous on disk.
+        RunLog.append(createDeviceProtectedStorageContext(), msg.trim());
         mMain.post(() -> {
             // Drive the two-step progress bar from the raw (unfiltered) lines.
             for (String line : msg.split("\n", -1)) {
@@ -146,7 +148,6 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         binding.outputView.append(styleLogLine(line));
         binding.outputView.append("\n");
         logBuffer.append(line).append('\n');
-        saveLog();
     }
 
     /** Translates raw native log lines into two-step progress-bar states.
@@ -388,16 +389,9 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         return ss;
     }
 
-    private void saveLog() {
-        try (FileOutputStream out = new FileOutputStream(lastLogFile)) {
-            out.write(logBuffer.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        } catch (IOException ignored) {
-        }
-        // Remember which boot this log came from - it is invalidated on reboot.
-        createDeviceProtectedStorageContext()
-                .getSharedPreferences("dfroot", MODE_PRIVATE)
-                .edit().putInt("log_boot_count", bootCount()).apply();
-    }
+    /** (removed) saveLog used to rewrite last_run.log with the filtered UI
+     *  buffer - that clobbered RunLog's raw forensic appends. The file now
+     *  belongs to RunLog: raw, append-only, fsynced per line. */
 
     private int bootCount() {
         try {
@@ -538,11 +532,14 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         // Show the log from the last run, if any. No run yet -> log hidden.
         // A log saved before the current boot is stale: delete it so a reboot
         // always starts with a clean screen (log + share icon hidden).
-        lastLogFile = new File(createDeviceProtectedStorageContext().getFilesDir(), "last_run.log");
-        int savedBoot = createDeviceProtectedStorageContext()
-                .getSharedPreferences("dfroot", MODE_PRIVATE).getInt("log_boot_count", -1);
-        if (lastLogFile.exists() && savedBoot != bootCount()) {
-            lastLogFile.delete();
+        // RunLog owns last_run.log: roll on boot change (rename, never
+        // delete - the stale run IS the crash evidence) and mirror everything
+        // to the public Downloads copy so it survives without root.
+        Context deCtx = createDeviceProtectedStorageContext();
+        RunLog.init(deCtx);
+        RunLog.flushExternal(deCtx);
+        lastLogFile = RunLog.file(deCtx);
+        if (lastLogFile.exists()) {
             createDeviceProtectedStorageContext()
                     .getSharedPreferences("dfroot", MODE_PRIVATE)
                     .edit().putBoolean("last_run_success", false).apply();
@@ -610,7 +607,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                     .setStrokeColor(ColorStateList.valueOf(0xFF1F1F1F));
             binding.outputView.setText("");
             logBuffer.setLength(0);
-            if (lastLogFile.exists()) lastLogFile.delete();
+            if (lastLogFile.exists()) RunLog.roll(createDeviceProtectedStorageContext());
             createDeviceProtectedStorageContext()
                     .getSharedPreferences("dfroot", MODE_PRIVATE)
                     .edit().putBoolean("last_run_success", false).apply();

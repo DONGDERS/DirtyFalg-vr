@@ -1,6 +1,7 @@
 package df.root;
 
 import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -28,7 +29,12 @@ public class BootReceiver extends BroadcastReceiver implements IReporter {
     @Override
     public void report(String msg) {
         Log.i(TAG, msg.trim());
+        // The boot chain used to log to logcat only, which a panic reboot
+        // wipes - exactly when the evidence matters. DE file, fsynced.
+        if (deLogCtx != null) RunLog.append(deLogCtx, msg.trim());
     }
+
+    private Context deLogCtx;
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -38,6 +44,18 @@ public class BootReceiver extends BroadcastReceiver implements IReporter {
         }
         Log.i(TAG, "boot: " + intent.getAction());
         final Context deCtx = context.createDeviceProtectedStorageContext();
+        deLogCtx = deCtx;
+        RunLog.init(deCtx);
+        // External volume is not mounted during direct boot; the mirror is
+        // marked pending and replayed to Downloads on unlock.
+        RunLog.flushExternal(deCtx);
+        // ACTION_USER_UNLOCKED is a protected system broadcast; plain
+        // registration is legal on every API level this app runs on.
+        registerReceiver(new BroadcastReceiver() {
+            @Override public void onReceive(Context c, Intent i) {
+                RunLog.flushExternal(deCtx);
+            }
+        }, new IntentFilter(Intent.ACTION_USER_UNLOCKED));
         boolean expert = deCtx.getSharedPreferences("dfroot", Context.MODE_PRIVATE)
                 .getBoolean("expert_mode", false);
         if (!expert) {
