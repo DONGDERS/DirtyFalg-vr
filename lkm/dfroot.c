@@ -155,7 +155,7 @@ static int __nocfi __init dfroot_init(void)
         " dmesg > /data/user_de/0/df.root/files/dmesg1.txt 2>&1;"
         " cp /data/user_de/0/df.root/files/dmesg1.txt /data/media/0/Download/DirtyFrag/ 2>/dev/null;"
         " lsmod > /data/user_de/0/df.root/files/lsmod1.txt 2>&1;"
-        " cp /data/user_de/0/df.root/files/lsmod1.txt /data/media/0/Download/DirtyFrag/ 2>/dev/null;
+        " cp /data/user_de/0/df.root/files/lsmod1.txt /data/media/0/Download/DirtyFrag/ 2>/dev/null;"
         " /data/user_de/0/df.root/kmsglog &"
         " rmmod oplus_secure_harden 2>/dev/null;"           //
         " rmmod oplus_security_keventupload 2>/dev/null;"   // Oppo/OnePlus
