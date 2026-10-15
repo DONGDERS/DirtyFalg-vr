@@ -55,3 +55,10 @@ set_target_properties(bootstrap PROPERTIES
     SUFFIX ".so"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 target_link_options(bootstrap PRIVATE -Wl,-z,max-page-size=16384)
+
+add_executable(kmsglog kmsglog.c)
+set_target_properties(kmsglog PROPERTIES
+    PREFIX "lib"
+    SUFFIX ".so"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+target_link_options(kmsglog PRIVATE -Wl,-z,max-page-size=16384)
