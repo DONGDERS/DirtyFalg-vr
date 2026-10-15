@@ -878,6 +878,8 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         // settle, a collapse or a reorder can never leave the log somewhere else.
         stack.setLogCard(binding.cardLog);
         stack.setLogWindow(binding.logWindow);
+        // Drags over the log box scroll the log, not the home.
+        binding.scrollHome.setPassthroughView(binding.logWindow);
         stack.setLogGap(logAllowed ? logWindowPx() : 0);
         stack.setListener(new CardStackLayout.Listener() {
             @Override

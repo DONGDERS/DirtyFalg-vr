@@ -470,7 +470,9 @@ public class CardStackLayout extends LinearLayout {
         lastY = y;
         slidOff = false;
         if (downCard == null) return;
-        disallowIntercept(true);
+        // No disallowIntercept here: a press that turns into a vertical drag
+        // must stay stealable by the outer scroller (scroll wins over a
+        // half-formed hold). The hold itself re-claims the gesture on lift().
         removeCallbacks(holdTimer);
         postDelayed(holdTimer, HOLD_MS);
     }
@@ -592,6 +594,10 @@ public class CardStackLayout extends LinearLayout {
 
     /** Lift a card. y is where the finger is, in this layout's coordinates. */
     private void lift(DraggableCardView card, float y) {
+        // The hold fired: from here the drag belongs to the stack. The finger
+        // has held still so far, so the outer scroller has not intercepted
+        // yet - claiming now sticks for the rest of the gesture.
+        disallowIntercept(true);
         // The hold landed: the press is over as far as the controls inside the
         // cards are concerned, and the stack owns the rest of the gesture.
         removeCallbacks(holdTimer);
@@ -756,6 +762,7 @@ public class CardStackLayout extends LinearLayout {
 
     /** Commit the order, then let every card settle into its slot (VIS3.1). */
     private void drop() {
+        disallowIntercept(false);
         DraggableCardView card = lifted;
         lifted = null;
         setTranslationZ(0f);

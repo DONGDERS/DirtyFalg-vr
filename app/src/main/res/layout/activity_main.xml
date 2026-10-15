@@ -59,7 +59,7 @@
          whatever the cards add up to. The stack scrolls when the cards
          outgrow the space between the toolbar and the run pill; card holds
          claim the gesture, so drags still win. -->
-    <ScrollView
+    <df.root.HomeScrollView
         android:id="@+id/scrollHome"
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -519,7 +519,7 @@
     </FrameLayout>
 
     </FrameLayout>
-    </ScrollView>
+    </df.root.HomeScrollView>
 
     <!-- OneUI-update-style two-step progress bar -->
     <df.root.TwoStepProgressView
