@@ -51,11 +51,12 @@ public class BootReceiver extends BroadcastReceiver implements IReporter {
         RunLog.flushExternal(deCtx);
         // ACTION_USER_UNLOCKED is a protected system broadcast; plain
         // registration is legal on every API level this app runs on.
-        registerReceiver(new BroadcastReceiver() {
-            @Override public void onReceive(Context c, Intent i) {
-                RunLog.flushExternal(deCtx);
-            }
-        }, new IntentFilter(Intent.ACTION_USER_UNLOCKED));
+        context.getApplicationContext().registerReceiver(
+                new BroadcastReceiver() {
+                    @Override public void onReceive(Context c, Intent i) {
+                        RunLog.flushExternal(deCtx);
+                    }
+                }, new IntentFilter(Intent.ACTION_USER_UNLOCKED));
         boolean expert = deCtx.getSharedPreferences("dfroot", Context.MODE_PRIVATE)
                 .getBoolean("expert_mode", false);
         if (!expert) {
