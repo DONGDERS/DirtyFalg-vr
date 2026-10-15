@@ -258,7 +258,12 @@ public class CardStackLayout extends LinearLayout {
         // The lifted card is translated and shadowed outside the stack bounds.
         setClipChildren(false);
         setClipToPadding(false);
-        setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        // FOCUS_AFTER_DESCENDANTS, not FOCUS_BLOCK: the block also kills the
+        // EditText's ability to take focus via touch, so the IME never opened
+        // and manual offset input was dead (v1.18 regression root cause). The
+        // intercept/replay logic already routes taps itself; focus is free to
+        // land where the touch lands.
+        setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         // A thumb wobbles while it waits; a swipe travels. This is where the two
         // stop looking the same.
         holdSlop = 3 * ViewConfiguration.get(context).getScaledTouchSlop();
@@ -438,10 +443,22 @@ public class CardStackLayout extends LinearLayout {
                 finishTap(ev.getX(), ev.getY());
                 return true;
             case MotionEvent.ACTION_CANCEL:
+                disallowIntercept(false);
                 cancelHold();
                 return true;
             default:
                 return true;
+        }
+    }
+
+    /**
+     * While a press is claimed on a card, the outer ScrollView must not steal
+     * the gesture mid-hold (it would turn a slow drag into a scroll). Fires
+     * once per claimed press; cleared when the gesture ends.
+     */
+    private void disallowIntercept(boolean disallow) {
+        if (getParent() instanceof ViewGroup) {
+            ((ViewGroup) getParent()).requestDisallowInterceptTouchEvent(disallow);
         }
     }
 
@@ -453,6 +470,7 @@ public class CardStackLayout extends LinearLayout {
         lastY = y;
         slidOff = false;
         if (downCard == null) return;
+        disallowIntercept(true);
         removeCallbacks(holdTimer);
         postDelayed(holdTimer, HOLD_MS);
     }
@@ -470,6 +488,7 @@ public class CardStackLayout extends LinearLayout {
      */
     private void releaseHold(boolean up) {
         boolean accept = up && selected != null;
+        disallowIntercept(false);
         cancelHold();
         if (accept) clearSelection();
     }
@@ -502,6 +521,7 @@ public class CardStackLayout extends LinearLayout {
     private void finishTap(float x, float y) {
         boolean accept = selected != null;
         boolean swipe = slidOff;
+        disallowIntercept(false);
         cancelHold();
         if (accept) {
             clearSelection();

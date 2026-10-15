@@ -1041,16 +1041,20 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         int size = b.getWidth() > 0 ? b.getWidth() : Math.round(HIDE_BTN_DP * md);
         int[] at = new int[2];
         int[] root = new int[2];
+        int[] swin = new int[2];
         card.getLocationInWindow(at);
         binding.getRoot().getLocationInWindow(root);
+        CardStackLayout stack = binding.cardStack;
+        stack.getLocationInWindow(swin);
         float bx = at[0] - root[0] - size / 2f;
         float by = at[1] - root[1] - size / 2f;
         b.setX(bx);
         b.setY(by);
-        // ... and tell the stack to let the badge's own taps through.
-        CardStackLayout stack = binding.cardStack;
-        stack.setKeepTouchArea(bx - stack.getX(), by - stack.getY(),
-                bx + size - stack.getX(), by + size - stack.getY());
+        // ... and tell the stack to let the badge's own taps through. The badge
+        // lives in root coords, but the stack scrolls inside a ScrollView, so
+        // the keep-area has to be derived from the stack's own window position.
+        stack.setKeepTouchArea(bx - swin[0], by - swin[1],
+                bx + size - swin[0], by + size - swin[1]);
     }
 
     /** The badge keeps following the card while it settles into its new slot. */
@@ -1258,7 +1262,8 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         et.setSingleLine(true);
         int pad = (int) (getResources().getDisplayMetrics().density * 20);
         et.setPadding(pad, pad, pad, pad / 2);
-        et.setTextColor(0xFFFFFFFF);
+        // No forced text color: the alert dialog surfaces from the DayNight
+        // theme and can render light, where forced white text vanished.
         et.setText(prefs().getString("vr_ota_url", ""));
         new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("OTA 链接")

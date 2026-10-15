@@ -56,20 +56,38 @@
          and it lifts, snaps under the finger and sticks there until the finger
          is lifted. The order and any hidden card are kept in dfroot_ui prefs.
          The stack is wrap_content so the log below it still rides along with
-         whatever the cards add up to. -->
-    <df.root.CardStackLayout
-        android:id="@+id/cardStack"
+         whatever the cards add up to. The stack scrolls when the cards
+         outgrow the space between the toolbar and the run pill; card holds
+         claim the gesture, so drags still win. -->
+    <ScrollView
+        android:id="@+id/scrollHome"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
         android:layout_marginStart="16dp"
         android:layout_marginTop="8dp"
         android:layout_marginEnd="16dp"
+        android:scrollbars="none"
+        android:overScrollMode="never"
         android:clipChildren="false"
         android:clipToPadding="false"
-        android:orientation="vertical"
+        app:layout_constraintBottom_toTopOf="@+id/twoStep"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/appBarLayout">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipChildren="false"
+        android:clipToPadding="false">
+
+    <df.root.CardStackLayout
+        android:id="@+id/cardStack"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:orientation="vertical">
 
     <!-- SU Manager picker. Upstream 3.2 removed the bundled ksud binary and
          stages it from the selected manager's nativeLibraryDir, so the exploit
@@ -464,13 +482,10 @@
          same frame. -->
     <FrameLayout
         android:id="@+id/logWindow"
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="@dimen/log_window_height"
         android:layout_marginStart="32dp"
-        android:layout_marginEnd="32dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        android:layout_marginEnd="32dp">
 
         <ScrollView
             android:id="@+id/outputScroll"
@@ -502,6 +517,9 @@
             android:focusable="false" />
 
     </FrameLayout>
+
+    </FrameLayout>
+    </ScrollView>
 
     <!-- OneUI-update-style two-step progress bar -->
     <df.root.TwoStepProgressView
