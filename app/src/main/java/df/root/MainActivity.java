@@ -138,6 +138,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                 // Strip hex file offsets: ".../libc.so+0x6e8b0" -> ".../libc.so"
                 t = t.replaceAll("\\+0x[0-9a-fA-F]+$", "");
                 t = stripHeader(t);
+                t = zhLine(t);
                 appendLog(t);
             }
             binding.outputScroll.post(() -> binding.outputScroll.fullScroll(View.FOCUS_DOWN));
@@ -348,8 +349,10 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         }
     }
 
-    /** "=== setup ===" -> "SETUP"; "=== exploit (patching files) ===" ->
-     *  "PATCHING"; "=== exploit failed: x ===" -> "EXPLOIT FAILED: X". */
+    /** "=== setup ===" -> "准备阶段"; "=== exploit failed: x ===" ->
+     *  "提权失败". The raw protocol markers must stay byte-identical in the
+     *  source (driveProgress / state restore / log triage match them), only
+     *  the on-screen form is Chinese. */
     private static String stripHeader(String t) {
         java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("^===\\s*(.*?)\\s*===$").matcher(t);
@@ -357,8 +360,17 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         String h = m.group(1).toUpperCase();
         // The native binary still prints "=== exploit (patching files) ===";
         // the UI shows the short form.
-        if (h.equals("EXPLOIT (PATCHING FILES)")) return "PATCHING";
-        return h;
+        switch (h) {
+            case "SETUP":                    return "准备阶段";
+            case "EXPLOIT (PATCHING FILES)":
+            case "PATCHING":                 return "修补文件";
+            case "INIT":                     return "内核装载";
+            case "CLEANUP":                  return "清理恢复";
+            case "EXPLOIT SUCCESS":          return "提权成功";
+            default:
+                if (h.startsWith("EXPLOIT FAILED")) return "提权失败";
+                return h;
+        }
     }
 
     /** The log's first line. Deliberately generic: the device banner that
@@ -367,13 +379,129 @@ public class MainActivity extends AppCompatActivity implements IReporter {
      *  model-prefixed firmware token ("S931BXXU1AYB2") was redundant noise. */
     private static final String LOG_HEADER = "SYSTEM";
 
+    /** Raw protocol line -> Chinese on-screen line. Returns the input when
+     *  there is no mapping (device paths, hex offsets etc. stay as-is).
+     *  Display-only: RunLog keeps the raw English protocol lines so log
+     *  matching and pasted-log triage keep working. */
+    private static String zhLine(String t) {
+        switch (t) {
+            case "libc++: loading custom module":
+                return "✓ 内核模块已装载";
+            case "kernel module: launching bootstrap":
+                return "✓ 模块启动引导程序";
+            case "bootstrap: loading app preferences file":
+                return "引导：读取应用配置";
+            case "bootstrap: cloning zygote env":
+                return "引导：继承 zygote 环境";
+            case "bootstrap: WARNING - clone zygote env failed":
+                return "⚠ 继承 zygote 环境失败（已跳过）";
+            case "bootstrap: setting partitions ro":
+                return "引导：分区回只读";
+            case "bootstrap: WARNING - set partitions ro failed":
+                return "⚠ 分区回只读失败（已跳过）";
+            case "bootstrap: disabling ksu modules":
+                return "引导：停用 KernelSU 模块";
+            case "bootstrap: starting SU daemon":
+                return "引导：启动 SU 守护进程";
+            case "vr: sys_exit probe disarmed (funcs = NULL)":
+                return "✓ vr 防护已拆除";
+            case "vr: W1c FAILED - tracepoint/offset mismatch, vr intact":
+                return "✗ vr 拆除失败：偏移不匹配，vr 防护仍生效";
+            case "patch: DEVICE NOT VULNERABLE":
+                return "✗ 内核未受此漏洞影响（厂商已修补）";
+            case "SYSTEM":
+                return "系统";
+        }
+        if (t.startsWith("Using KMI:"))
+            return "匹配内核 KMI：" + t.substring("Using KMI:".length()).trim();
+        if (t.startsWith("found ko_target:"))
+            return "定位目标文件：" + t.substring("found ko_target:".length()).trim();
+        if (t.startsWith("Triggering hook"))
+            return "触发钩子" + t.substring("Triggering hook".length());
+        if (t.startsWith("vr: cfg patched, funcs offset "))
+            return "✓ vr 配置已写入（" + t.substring("vr: cfg patched, ".length()) + "）";
+        if (t.startsWith("vr: WARNING - ko has no vr config slot"))
+            return "⚠ 模块内无 vr 配置槽，vr 拆除已跳过";
+        if (t.startsWith("restoring trampoline in "))
+            return "清理：恢复 " + t.substring("restoring trampoline in ".length());
+        if (t.startsWith("restoring shellcode in "))
+            return "清理：恢复 " + t.substring("restoring shellcode in ".length());
+        if (t.startsWith("patch: ") && t.contains("<- "))
+            return "修补文件：" + t.substring("patch: ".length());
+        if (t.startsWith("patched ") && t.contains(" to "))
+            return "已写入 " + t.substring("patched ".length());
+        if (t.startsWith("Finding symbol offsets for "))
+            return "解析符号偏移：" + t.substring("Finding symbol offsets for ".length());
+        if (t.startsWith("device not vulnerable"))
+            return "✗ 内核未受此漏洞影响（厂商已修补）";
+        if (t.startsWith("Can't parse kernel version"))
+            return "✗ 无法识别内核版本（非 GKI 设备）";
+        if (t.startsWith("Unsupported kernel "))
+            return "✗ 内核版本暂不支持：" + t.substring("Unsupported kernel ".length()).trim();
+        if (t.startsWith("patch: ") && t.contains(" patch failed"))
+            return "✗ 修补文件失败：" + t.substring("patch: ".length());
+        if (t.startsWith("failed to find offsets for "))
+            return "✗ 解析符号偏移失败：" + t.substring("failed to find offsets for ".length());
+        if (t.endsWith(" already patched"))
+            return "目标已是修补状态（跳过）：" + t.substring(0, t.length() - " already patched".length());
+        return t;
+    }
+
+    /** Raw "ERROR - <reason>" text -> Chinese one-line cause. */
+    private static String zhFailReason(String raw) {
+        String r = raw == null ? "" : raw.trim();
+        if (r.contains("no SU manager selected"))
+            return "未选择 SU 管理器";
+        if (r.contains("no longer installed") || r.contains("has no libksud.so"))
+            return "所选 SU 管理器不可用（已卸载或缺少 libksud.so）";
+        if (r.contains("DEVICE NOT VULNERABLE") || r.contains("failed to patch files"))
+            return "文件修补失败（内核可能已修补此漏洞）";
+        if (r.contains("reading prefs failed"))
+            return "引导程序读取应用配置失败";
+        if (r.contains("disable modules failed"))
+            return "停用 KernelSU 模块失败";
+        if (r.contains("ksud nonzero exit"))
+            return "SU 守护进程（ksud）异常退出";
+        if (r.contains("check logcat") || r.contains("timeout"))
+            return "引导流程超时（模块未在时限内完成装载）";
+        if (r.contains("non-GKI") || r.contains("Can't parse kernel version"))
+            return "无法识别内核版本（非 GKI 设备）";
+        if (r.contains("Unsupported kernel"))
+            return "内核版本暂不支持";
+        if (r.isEmpty()) return "未知原因";
+        return r;
+    }
+
+    /** Raw "ERROR - <reason>" text -> Chinese one-line advice. */
+    private static String zhFailAdvice(String raw) {
+        String r = raw == null ? "" : raw.trim();
+        if (r.contains("no SU manager selected"))
+            return "建议：先在 SU Manager 卡片选择你的管理器（需自带 libksud.so），再按运行";
+        if (r.contains("no longer installed") || r.contains("has no libksud.so"))
+            return "建议：换一个自带 libksud.so 的 SU 管理器（KernelSU / KernelSU-Next 等）后重试";
+        if (r.contains("reading prefs failed"))
+            return "建议：确认已在 SU Manager 卡片选择管理器后重试；反复失败请重启后再试";
+        if (r.contains("disable modules failed"))
+            return "建议：重启后重试；若怀疑某个模块导致崩溃，可先关闭 KernelSU Modules 开关再提权";
+        if (r.contains("ksud nonzero exit"))
+            return "建议：重启手机后重试；反复出现请保存运行日志反馈";
+        if (r.contains("failed to patch files") || r.contains("DEVICE NOT VULNERABLE"))
+            return "建议：重启手机后重试一次；若再次失败，说明设备内核已修补此漏洞，无法提权";
+        if (r.contains("check logcat") || r.contains("timeout"))
+            return "建议：重启手机后重试；反复超时请保存运行日志反馈";
+        return "建议：重启手机后重试；反复失败请保存运行日志反馈";
+    }
+
     /** Header lines render big, white and bold; the rest is dimmed. */
     private boolean isHeader(String line) {
         return line.equals("SETUP") || line.equals("PATCHING")
                 || line.equals("EXPLOIT (PATCHING FILES)")
                 || line.equals("INIT") || line.equals("CLEANUP")
+                || line.equals("准备阶段") || line.equals("修补文件")
+                || line.equals("内核装载") || line.equals("清理恢复")
+                || line.equals("提权成功") || line.equals("提权失败")
                 || line.startsWith("EXPLOIT FAILED")
-                || line.equals(LOG_HEADER);
+                || line.equals(LOG_HEADER) || line.equals("系统");
     }
 
     /** Header lines render big, white and bold; the rest is dimmed. */
@@ -519,7 +647,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                     titleView.setTypeface(bold);
                     titleView.setOnClickListener(v -> {
                         if (updateAvailable) openUrl(
-                                "https://github.com/mitschud/DirtyFrag/releases");
+                                "https://github.com/DONGDERS/DirtyFalg-vr/releases");
                     });
                 }
             }
@@ -547,7 +675,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         String last = readLastLog();
         boolean hasLastLog = !last.isEmpty();
         if (hasLastLog) {
-            appendLog(LOG_HEADER);
+            appendLog(zhLine(LOG_HEADER));
             for (String l : last.split("\n")) {
                 String t = stripHeader(l.trim());
                 // Skip stale headers, old result lines and duplicate header lines.
@@ -557,6 +685,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                         || t.equals(LOG_HEADER)) {
                     continue;
                 }
+                t = zhLine(t);
                 appendLog(t);
             }
         }
@@ -611,7 +740,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             createDeviceProtectedStorageContext()
                     .getSharedPreferences("dfroot", MODE_PRIVATE)
                     .edit().putBoolean("last_run_success", false).apply();
-            appendLog(LOG_HEADER);
+            appendLog(zhLine(LOG_HEADER));
             binding.twoStep.reset();
             setCompactButton(true, false);
             updateLogVisibility();
@@ -665,7 +794,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             ghRow.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15);
             ghRow.setOnClickListener(v2 -> {
                 v2.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                openUrl("https://github.com/mitschud/DirtyFrag");
+                openUrl("https://github.com/DONGDERS/DirtyFalg-vr");
             });
             box.addView(ghRow, new android.widget.LinearLayout.LayoutParams(
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT, (int) (46 * md)));
@@ -1590,7 +1719,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
     private void checkForAppUpdate() {
         try {
             java.net.HttpURLConnection conn = (java.net.HttpURLConnection)
-                    new java.net.URL("https://api.github.com/repos/mitschud/DirtyFrag/releases/latest")
+                    new java.net.URL("https://api.github.com/repos/DONGDERS/DirtyFalg-vr/releases/latest")
                             .openConnection();
             conn.setConnectTimeout(8000);
             conn.setReadTimeout(8000);
@@ -1874,13 +2003,22 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                         : rc == 1 ? "ksud nonzero exit"
                         : rc == 2 ? "check logcat & dmesg"
                         : "failed to patch files";
+                // The "=== exploit failed ===" line is protocol: state restore
+                // greps for it. The Chinese block below is display-only.
                 report("\n=== exploit failed: " + why + " ===\n");
+                report("\n失败原因：" + zhFailReason(why)
+                        + "\n" + zhFailAdvice(why) + "\n");
+            } else {
+                report("\n提权成功：内核模块已装载，SU 守护进程已启动。\n"
+                        + "说明：本次 root 为临时性，重启后自动恢复原状。\n");
             }
             mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE)
                     .edit().putBoolean("last_run_success", rc == 0).apply();
         } catch (Exception e) {
             Log.e(TAG, "exploit exception", e);
             report("\nexception: " + e + "\n");
+            report("\n失败原因：运行异常（" + e.getClass().getSimpleName() + "）\n"
+                    + "建议：重启手机后重试；反复失败请保存运行日志反馈\n");
         } finally {
             mMain.post(() -> {
                 running = false;
