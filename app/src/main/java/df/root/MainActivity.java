@@ -409,6 +409,12 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                 return "✗ vr 拆除失败：偏移不匹配，vr 防护仍生效";
             case "patch: DEVICE NOT VULNERABLE":
                 return "✗ 内核未受此漏洞影响（厂商已修补）";
+            case "vr: auto-resolve ok":
+                return "✓ vr 偏移已自动解析";
+            case "vr: cfg patched (auto-resolve)":
+                return "✓ vr 配置已写入（自动解析模式）";
+            case "vr funcs offset: auto-resolve (kernel BTF)":
+                return "vr 偏移：自动解析（内核 BTF）";
             case "SYSTEM":
                 return "系统";
         }
@@ -462,6 +468,8 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             return "停用 KernelSU 模块失败";
         if (r.contains("ksud nonzero exit"))
             return "SU 守护进程（ksud）异常退出";
+        if (r.contains("vr disarm failed") || r.contains("auto-resolve failed"))
+            return "vr 探针拆除失败（自动解析未成功或偏移不匹配），已中止提权";
         if (r.contains("check logcat") || r.contains("timeout"))
             return "引导流程超时（模块未在时限内完成装载）";
         if (r.contains("non-GKI") || r.contains("Can't parse kernel version"))
@@ -485,6 +493,8 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             return "建议：重启后重试；若怀疑某个模块导致崩溃，可先关闭 KernelSU Modules 开关再提权";
         if (r.contains("ksud nonzero exit"))
             return "建议：重启手机后重试；反复出现请保存运行日志反馈";
+        if (r.contains("vr disarm failed") || r.contains("auto-resolve failed"))
+            return "建议：保持「自动获取 Vr 偏移」开启后重试；管理器未激活、内核无残留，可直接重试";
         if (r.contains("failed to patch files") || r.contains("DEVICE NOT VULNERABLE"))
             return "建议：重启手机后重试一次；若再次失败，说明设备内核已修补此漏洞，无法提权";
         if (r.contains("check logcat") || r.contains("timeout"))
@@ -615,9 +625,17 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         vrRefresh = true;
         SharedPreferences vrSp = mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE);
         binding.switchVr.setChecked(vrSp.getBoolean("vr_disarm", false));
-        binding.vrOffsetInput.setText(vrSp.getString("vr_off", "72"));
+        // No built-in default: the offset is either auto-resolved by the ko
+        // (BTF ground truth) or typed by the user - never a hard-coded 72.
+        binding.vrOffsetInput.setText(vrSp.getString("vr_off", ""));
+        binding.switchVrAuto.setChecked(vrSp.getBoolean("vr_auto", true));
         applyVrState(binding.switchVr.isChecked(), false);
         vrRefresh = false;
+        binding.switchVrAuto.setOnCheckedChangeListener((btn, on) -> {
+            if (vrRefresh) return;
+            btn.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            applyVrAuto(on);
+        });
         binding.switchVr.setOnCheckedChangeListener((btn, on) -> {
             if (vrRefresh) return;
             btn.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
@@ -633,7 +651,13 @@ public class MainActivity extends AppCompatActivity implements IReporter {
 
         // Vr offset extractor (GhostLock-zstd engine, see VrExtractor): pick
         // an OTA link or a boot.img file and the pipeline fills the input.
-        binding.vrExtractBtn.setOnClickListener(v -> showVrExtractDialog());
+        binding.vrExtractBtn.setOnClickListener(v -> {
+            if (mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE)
+                        .getBoolean("vr_auto", true)) {
+                return; /* locked in auto mode */
+            }
+            showVrExtractDialog();
+        });
 
         // Force real bold (wght 700) One UI Sans on the toolbar title TextView.
         binding.toolbar.post(() -> {
@@ -1287,6 +1311,8 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                 ? "开启 - 提权时零写 funcs 拆除探针（拉起管理器前）"
                 : "关闭 - 不动 sys_exit 探针");
         View extractBtn = binding.vrExtractBtn;
+        // The auto-resolve row only exists while vr disarm is on.
+        binding.vrAutoRow.setVisibility(on ? View.VISIBLE : View.GONE);
         if (animate) {
             binding.vrOffsetInput.animate().cancel();
             extractBtn.animate().cancel();
@@ -1309,6 +1335,23 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             binding.vrOffsetInput.setVisibility(on ? View.VISIBLE : View.GONE);
             extractBtn.setVisibility(on ? View.VISIBLE : View.GONE);
         }
+        applyVrAuto(mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE)
+                .getBoolean("vr_auto", true));
+    }
+
+    /** Auto-resolve toggle: on = the ko derives the funcs offset from the
+     *  kernel's own BTF at runtime and corrects the stored value after the
+     *  run; the manual input and the extractor are locked. Off = manual
+     *  chain as before. */
+    private void applyVrAuto(boolean on) {
+        SharedPreferences sp = mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE);
+        sp.edit().putBoolean("vr_auto", on).apply();
+        binding.vrOffsetInput.setEnabled(!on);
+        binding.vrExtractBtn.setEnabled(!on);
+        float a = on ? 0.35f : 1f;
+        binding.vrOffsetInput.animate().alpha(a).setDuration(120).start();
+        binding.vrExtractBtn.animate().alpha(a).setDuration(120).start();
+        if (on) binding.vrOffsetInput.setTextColor(0xFFFFFFFF);
     }
 
     /** Parses "72" / "0x48" / "0X48" (> 0, < 2^31) and persists the raw text.
@@ -1994,6 +2037,24 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         boolean autoSoftReboot = sp.getBoolean("auto_soft_reboot", false);
         sp.edit().putBoolean("soft_reboot", autoSoftReboot).apply();
         lastFailReason = null;
+        // Vr disarm requested but no offset available (manual mode, empty
+        // field, auto off): refusing is the point - running with the probe
+        // armed gets the manager killed by vr and wedges the kernel.
+        if (sp.getBoolean("vr_disarm", false)
+                && !sp.getBoolean("vr_auto", true)
+                && sp.getString("vr_off", "").trim().isEmpty()) {
+            report("\n=== exploit failed: vr disarm failed ===\n");
+            report("\n失败原因：Vr 拆除已开启，但手动偏移为空\n"
+                    + "建议：打开「自动获取 Vr 偏移」，或在 Vr 卡输入偏移后重试\n");
+            mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE)
+                    .edit().putBoolean("last_run_success", false).apply();
+            mMain.post(() -> {
+                running = false;
+                setFailedState();
+                updateLogVisibility();
+            });
+            return;
+        }
         try {
             int rc = ExploitRunner.run(mDeCtx, this);
             if (rc != 0) {
@@ -2002,6 +2063,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                 String why = lastFailReason != null ? lastFailReason
                         : rc == 1 ? "ksud nonzero exit"
                         : rc == 2 ? "check logcat & dmesg"
+                        : rc == 4 ? "vr disarm failed"
                         : "failed to patch files";
                 // The "=== exploit failed ===" line is protocol: state restore
                 // greps for it. The Chinese block below is display-only.
@@ -2011,6 +2073,45 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             } else {
                 report("\n提权成功：内核模块已装载，SU 守护进程已启动。\n"
                         + "说明：本次 root 为临时性，重启后自动恢复原状。\n");
+            }
+            // Vr auto-resolve readback: the ko writes the resolved funcs
+            // offset (or "fail") into our DE files dir via the UMH shell.
+            // Success corrects the stored manual value; failure is reported
+            // as-is - the ko never wrote blind and the chain was aborted.
+            if (sp.getBoolean("vr_disarm", false)
+                    && sp.getBoolean("vr_auto", true)) {
+                try {
+                    File vf = new File(
+                            createDeviceProtectedStorageContext().getFilesDir(),
+                            "vr_offset.txt");
+                    String c = vf.exists()
+                            ? new String(java.nio.file.Files.readAllBytes(vf.toPath()),
+                                         java.nio.charset.StandardCharsets.UTF_8).trim()
+                            : "";
+                    long v = 0;
+                    try { v = Long.parseLong(c); } catch (Exception ignore) { }
+                    if (v > 0 && v <= 0x1000) {
+                        SharedPreferences vrSp = mDeCtx
+                                .getSharedPreferences("dfroot", MODE_PRIVATE);
+                        String oldv = vrSp.getString("vr_off", "").trim();
+                        boolean changed = !oldv.equals(String.valueOf(v));
+                        if (changed) {
+                            vrSp.edit().putString("vr_off", String.valueOf(v)).apply();
+                            binding.vrOffsetInput.setText(String.valueOf(v));
+                        }
+                        report(changed
+                                ? "\n✓ vr 偏移已自动解析：" + v + "（0x"
+                                  + Long.toHexString(v) + "），已更正本地值\n"
+                                : "\n✓ vr 偏移已自动解析：" + v + "（0x"
+                                  + Long.toHexString(v) + "），与本地值一致\n");
+                        vf.delete();
+                    } else if (c.equals("fail")) {
+                        report("\n✗ vr 偏移自动解析失败：提权已中止，管理器未激活，"
+                                + "内核无残留。\n"
+                                + "建议：保存运行日志反馈；重试或重启后再试。\n");
+                        vf.delete();
+                    }
+                } catch (Exception ignore) { }
             }
             mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE)
                     .edit().putBoolean("last_run_success", rc == 0).apply();

@@ -371,6 +371,36 @@
 
             </LinearLayout>
 
+            <!-- Auto-resolve row: only exists while the vr disarm switch is
+                 on. On = the ko derives the funcs offset from the kernel's
+                 own BTF at runtime (per-device ground truth); the manual
+                 input and the extractor are locked. Off = manual chain. -->
+            <LinearLayout
+                android:id="@+id/vrAutoRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/vrAutoTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_gravity="center_vertical"
+                    android:text="自动获取 Vr 偏移"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="14sp" />
+
+                <df.root.OneUiSwitch
+                    android:id="@+id/switchVrAuto"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:checked="true" />
+
+            </LinearLayout>
+
             <EditText
                 android:id="@+id/vrOffsetInput"
                 android:layout_width="match_parent"

