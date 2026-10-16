@@ -9,7 +9,7 @@
 
 ## 安装
 
-1. 从 [Releases](https://github.com/DONGDERS/DirtyFrag/releases/latest) 下载安装 APK。
+1. 从 [Releases](https://github.com/DONGDERS/DirtyFalg-vr/releases/latest) 下载安装 APK。
 2. 安装一个**自带 `libksud.so`** 的 SU 管理器：
    - [KernelSU](https://github.com/tiann/KernelSU/releases/latest)
    - [KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next/releases/latest)
