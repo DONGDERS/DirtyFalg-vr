@@ -88,7 +88,22 @@ static unsigned long __nocfi vr_btf_funcs(filp_open_t f_open,
         f_close(f, NULL);
         return 0;
     }
-    n = k_read(f, buf, BTF_SZ, &pos);
+    /* Loop the read: a single kernel_read on the BTF sysfs attribute
+     * short-reads (observed on-device - 6MB file, one call returns less),
+     * which the first cut mistook for truncation. 1MB chunks until EOF. */
+    {
+        size_t total = 0;
+        while (total < BTF_SZ) {
+            size_t chunk = BTF_SZ - total;
+            if (chunk > 1024 * 1024)
+                chunk = 1024 * 1024;
+            n = k_read(f, buf + total, chunk, &pos);
+            if (n <= 0)
+                break;
+            total += (size_t)n;
+        }
+        n = (ssize_t)total;
+    }
     f_close(f, NULL);
     if (n < 64) {
         pr_warn("dfroot: vr auto: BTF read short (%zd)\n", n);
