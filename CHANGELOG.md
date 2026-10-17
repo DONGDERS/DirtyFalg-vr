@@ -1,3 +1,12 @@
+## 1.16-vr (46)
+
+- Rebased on mitschud v1.16 (upstream DFRoot 4.2-4.5 merged): vendor hardening
+  patched in place (ret0) instead of rmmod, UMH_WAIT_EXEC, self-unloading ko
+- Ported the vr stack onto the 1.16 engine: W1c funcs disarm, BTF auto-resolve
+  (chunked read), abort chain, kmsglog follower, snapshot chain, Chinese logs,
+  vr extractor app-side
+- All 8 GKI KMIs rebuilt with the vr config slot (CI-verified, magic x8)
+
 # Changelog
 
 ## Unreleased
