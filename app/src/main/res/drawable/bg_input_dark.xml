@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark rounded field for the Vr funcs-offset input (matches the 26dp card
+     corner language at a smaller radius, same #1C1C1C family). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="14dp" />
+    <solid android:color="#FF141414" />
+    <stroke android:width="1dp" android:color="#FF333333" />
+</shape>

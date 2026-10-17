@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Grey press-highlight for submenu rows, rounded like the popup card.
+     Content matches the popup background: invisible at rest, opaque so the ripple always draws. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#4D6E6E6E">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="20dp" />
+            <solid android:color="#FF1C1C1C" />
+        </shape>
+    </item>
+</ripple>

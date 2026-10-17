@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Hide this card" glyph (VIS1.4): a plain minus, exactly as drawn in the
+     visualisation. The chip it sits on already says "control", so the glyph only
+     has to say "take this one away" - and at 30dp a single stroke is the only
+     thing that stays crisp. Dark ink on the light chip. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M6,12 L18,12"
+        android:strokeColor="#FF3A3A3C"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.6" />
+</vector>

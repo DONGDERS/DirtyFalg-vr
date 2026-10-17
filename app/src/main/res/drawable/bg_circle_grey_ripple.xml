@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark-grey circle with a touch ripple masked to the same oval, so the
+     highlight never spills past the circle. Used by the share-log button;
+     #1F1F1F matches the Rooted pill / unlit KernelSU circle. Ripple is the
+     same 30% mid-grey as every other highlight - no white flash. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#4D6E6E6E">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#FF1F1F1F" />
+        </shape>
+    </item>
+</ripple>

@@ -1,0 +1,693 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fitsSystemWindows="true"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            app:title="DirtyFrag"
+            app:titleMarginStart="32dp"
+            app:titleTextAppearance="@style/ToolbarTitle">
+
+            <!-- OneUI-style overflow button: grey circle, right edge aligned
+                 with the card toggles below (32dp from screen edge). -->
+            <ImageButton
+                android:id="@+id/btnMenu"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="16dp"
+                android:background="@drawable/bg_circle"
+                android:contentDescription="菜单"
+                android:scaleType="center"
+                android:src="@drawable/ic_more" />
+
+
+        </com.google.android.material.appbar.MaterialToolbar>
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- Invisible anchor for the popup menu: sits a bit right of and below
+         the circle button, so the popup overlaps the card below. -->
+    <View
+        android:id="@+id/menuAnchor"
+        android:layout_width="8dp"
+        android:layout_height="2dp"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="8dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/appBarLayout" />
+
+    <!-- Movable card stack (VIS1): the four OneUI cards live in a vertical
+         CardStackLayout. A tap is just a tap; hold anywhere on a card for a beat
+         and it lifts, snaps under the finger and sticks there until the finger
+         is lifted. The order and any hidden card are kept in dfroot_ui prefs.
+         The stack is wrap_content so the log below it still rides along with
+         whatever the cards add up to. The stack scrolls when the cards
+         outgrow the space between the toolbar and the run pill; card holds
+         claim the gesture, so drags still win. -->
+    <df.root.HomeScrollView
+        android:id="@+id/scrollHome"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="16dp"
+        android:scrollbars="none"
+        android:overScrollMode="never"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        app:layout_constraintBottom_toTopOf="@+id/twoStep"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/appBarLayout">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipChildren="false"
+        android:clipToPadding="false">
+
+    <df.root.CardStackLayout
+        android:id="@+id/cardStack"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:orientation="vertical">
+
+    <!-- SU Manager picker. Upstream 3.2 removed the bundled ksud binary and
+         stages it from the selected manager's nativeLibraryDir, so the exploit
+         cannot run at all until a manager is picked here. -->
+    <df.root.DraggableCardView
+        android:id="@+id/cardSuManager"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardBackgroundColor="#FF1C1C1C"
+        app:cardCornerRadius="26dp"
+        app:strokeWidth="0dp">
+
+        <LinearLayout
+            android:id="@+id/rowSuManager"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/menu_row_highlight"
+            android:clickable="true"
+            android:focusable="true"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_gravity="center_vertical"
+                android:orientation="vertical"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="SU 管理器"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/suManagerSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="未选择 - 必需"
+                    android:textColor="#FF9E9E9E"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+
+            <ImageView
+                android:id="@+id/chevronSuManager"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center_vertical"
+                android:contentDescription="选择"
+                android:src="@drawable/ic_chevron" />
+
+        </LinearLayout>
+
+    </df.root.DraggableCardView>
+
+    <df.root.DraggableCardView
+        android:id="@+id/cardBoot"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        app:cardBackgroundColor="#FF1C1C1C"
+        app:cardCornerRadius="26dp"
+        app:strokeWidth="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvAutorunTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="开机自启"
+                        android:textColor="#FFFFFFFF"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:id="@+id/tvAutorunDesc"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="开机后自动执行提权"
+                        android:textColor="#FF9E9E9E"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+
+                <df.root.OneUiSwitch
+                    android:id="@+id/switchBootStart"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvRebootTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="自动软重启"
+                        android:textColor="#FFFFFFFF"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:id="@+id/tvRebootDesc"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Root 成功后软重启"
+                        android:textColor="#FF9E9E9E"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+
+                <df.root.OneUiSwitch
+                    android:id="@+id/switchAutoSoftReboot"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </df.root.DraggableCardView>
+
+    <df.root.DraggableCardView
+        android:id="@+id/cardModules"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        app:cardBackgroundColor="#FF1C1C1C"
+        app:cardCornerRadius="26dp"
+        app:strokeWidth="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_gravity="center_vertical"
+                android:orientation="vertical"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="KernelSU 模块"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/modulesSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="已启用 - 下次重启后生效"
+                    android:textColor="#FF9E9E9E"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+
+            <df.root.OneUiSwitch
+                android:id="@+id/switchModules"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:checked="true" />
+
+        </LinearLayout>
+
+    </df.root.DraggableCardView>
+
+    <!-- Vr disarm (W1c): zero __tracepoint_sys_exit->funcs inside dfroot.ko
+         right before the manager is launched, so vivo's vr.ko exit probe
+         never sees a fresh-root task. The funcs offset is device-specific
+         (parse it from GhostLock's kernel profile / extractor output) and
+         only shows up once the switch is on. -->
+    <df.root.DraggableCardView
+        android:id="@+id/cardVr"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        app:cardBackgroundColor="#FF1C1C1C"
+        app:cardCornerRadius="26dp"
+        app:strokeWidth="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_gravity="center_vertical"
+                    android:orientation="vertical"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp">
+
+                    <TextView
+                        android:id="@+id/vrTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="去除 Vr 探针"
+                        android:textColor="#FFFFFFFF"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:id="@+id/vrSubtitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="关闭 - 不动 sys_exit 探针"
+                        android:textColor="#FF9E9E9E"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+
+                <df.root.OneUiSwitch
+                    android:id="@+id/switchVr"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical" />
+
+            </LinearLayout>
+
+            <!-- Auto-resolve row: only exists while the vr disarm switch is
+                 on. On = the ko derives the funcs offset from the kernel's
+                 own BTF at runtime (per-device ground truth); the manual
+                 input and the extractor are locked. Off = manual chain. -->
+            <LinearLayout
+                android:id="@+id/vrAutoRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/vrAutoTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_gravity="center_vertical"
+                    android:text="自动获取 Vr 偏移"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="14sp" />
+
+                <df.root.OneUiSwitch
+                    android:id="@+id/switchVrAuto"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:checked="true" />
+
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/vrOffsetInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="4dp"
+                android:background="@drawable/bg_input_dark"
+                android:hint="funcs 偏移（十进制或 0x 十六进制，如 72 / 0x48）"
+                android:importantForAutofill="no"
+                android:inputType="text"
+                android:maxLength="18"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:textColor="#FFFFFFFF"
+                android:textColorHint="#FF6E6E6E"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/vrExtractBtn"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="4dp"
+                android:backgroundTint="#FF2A2A2A"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:text="从 Boot.img / OTA 链接解析偏移"
+                android:textColor="#FF9E9E9E"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+    </df.root.DraggableCardView>
+
+    <df.root.DraggableCardView
+        android:id="@+id/cardLog"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        app:cardBackgroundColor="#FF1C1C1C"
+        app:cardCornerRadius="26dp"
+        app:strokeWidth="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_gravity="center_vertical"
+                android:orientation="vertical"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="显示完整日志"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="显示可滚动的完整日志"
+                    android:textColor="#FF9E9E9E"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+
+            <df.root.OneUiSwitch
+                android:id="@+id/switchAdvancedLog"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical" />
+
+        </LinearLayout>
+
+    </df.root.DraggableCardView>
+
+    </df.root.CardStackLayout>
+
+    <!-- The advanced log. CardStackLayout owns this box (VIS4): it keeps a window
+         of @dimen/log_window_height under the "Show advanced log" card and cuts
+         the box to exactly that window with a top margin, so the log is exactly as
+         tall as the room it was given and can never run under a card further down
+         the stack - which is what used to slice the text in half along the card
+         edges. The margin is set on a layout pass, never with a translation: a
+         translated view leaves the strip it already drew sitting on the screen
+         under the cards. The padding used to be 140dp to keep the last lines clear
+         of the pills the log scrolled beneath; the box is bounded now, so it only
+         needs a small inset.
+
+         The text and the fade are ONE box rather than two views that happen to
+         agree. Kept apart, each was placed on its own and faded on its own, and
+         the fade was reliably a step behind the text it is meant to be lying on -
+         the log flashed up whole and the gradient arrived after it. In one box the
+         gradient is simply the top of it: same place, same height, same alpha,
+         same frame. -->
+    <FrameLayout
+        android:id="@+id/logWindow"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/log_window_height"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp">
+
+        <ScrollView
+            android:id="@+id/outputScroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scrollbars="none"
+            android:overScrollMode="never"
+            android:clipToPadding="false"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:id="@+id/outputView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#FFB3B3B3"
+                android:textIsSelectable="false"
+                android:textSize="11sp" />
+
+        </ScrollView>
+
+        <!-- OneUI-style fade over the log box. Not clickable, so a press that
+             lands on it carries on through to the text underneath: the bottom of
+             the log is covered in gradient, and still has to scroll. -->
+        <df.root.BottomFadeView
+            android:id="@+id/bottomFade"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clickable="false"
+            android:focusable="false" />
+
+    </FrameLayout>
+
+    </FrameLayout>
+    </df.root.HomeScrollView>
+
+    <!-- OneUI-update-style two-step progress bar -->
+    <df.root.TwoStepProgressView
+        android:id="@+id/twoStep"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:layout_marginBottom="6dp"
+        app:layout_constraintBottom_toTopOf="@+id/btnRun"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Left-edge anchor for the pill: (1-0.48)/2 = 26% — the fresh pill's
+         left edge, which must never move during the shrink animation. -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/glPillStart"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.26" />
+
+    <!-- OneUI search-bar style floating pill -->
+    <Button
+        android:id="@+id/btnRun"
+        android:layout_width="0dp"
+        android:layout_height="54dp"
+        android:layout_marginBottom="28dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:paddingStart="28dp"
+        android:paddingEnd="28dp"
+        android:elevation="12dp"
+        android:stateListAnimator="@null"
+        android:text="开始提权"
+        android:textSize="14sp"
+        android:backgroundTint="#FF7A7A7A"
+        android:textColor="#FFE0E0E0"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0"
+        app:layout_constraintStart_toStartOf="@+id/glPillStart"
+        app:layout_constraintWidth_percent="0.48"
+        app:strokeWidth="0.5dp"
+        app:strokeColor="#FFA6A6A6" />
+
+    <!-- SU-manager launcher. Circle (54dp, chevron dead-centre) while a run is
+         in flight; once root is verified MainActivity morphs it into a pill the
+         same width as the shrunken Run pill, so the bottom row reads as two
+         equal pills with the share circle mirroring the left edge and the old
+         right-hand deadzone filled. The chevron is pinned 17dp from the right
+         edge = (54-20)/2, which centres it in the circle AND puts it at the
+         pill's end - one drawable, no icon animation. No KSU logo: the manager
+         can be KernelSU, KernelSU-Next, KowSU or anything else that ships
+         libksud.so, so a KernelSU-shaped glyph would be a lie. -->
+    <FrameLayout
+        android:id="@+id/btnKsu"
+        android:layout_width="54dp"
+        android:layout_height="54dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginBottom="28dp"
+        android:background="@drawable/bg_pill"
+        android:backgroundTint="#FF2E2E30"
+        android:clickable="true"
+        android:contentDescription="打开 SU 管理器"
+        android:elevation="12dp"
+        android:enabled="false"
+        android:focusable="true"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0"
+        app:layout_constraintStart_toEndOf="@+id/btnRun">
+
+        <!-- Fades in while the circle opens up; dark ink on the lit pill.
+             Centered in the space left of the chevron (marginEnd clears the
+             chevron), which reads better than hugging the pill's left edge.
+             The morph's end action forces a re-layout so the label actually
+             re-centres as the width animates. Nudge marginEnd to move it. -->
+        <TextView
+            android:id="@+id/ksuLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start|center_vertical"
+            android:layout_marginStart="22dp"
+            android:alpha="0"
+            android:text="打开"
+            android:textColor="#FF1F1F1F"
+            android:textSize="14sp" />
+
+        <ImageView
+            android:id="@+id/ksuChevron"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="17dp"
+            android:contentDescription="打开"
+            android:src="@drawable/ic_chevron" />
+
+    </FrameLayout>
+
+    <!-- Share log circle: same 54dp size as the KernelSU launcher, sitting to
+         the LEFT of the run pill (mirroring btnKsu on the right). Dark grey
+         (#1F1F1F, like the Rooted pill / unlit KSU circle) with the glyph in
+         #6E6E6E — the exact colour of the "Rooted" text. padding 0 + center
+         scaleType keep the glyph dead-centre. Hidden until a run has finished;
+         MainActivity.setShareButtonVisible pops it in like btnKsu. -->
+    <ImageButton
+        android:id="@+id/btnShareLog"
+        android:layout_width="54dp"
+        android:layout_height="54dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="28dp"
+        android:background="@drawable/bg_circle_grey_ripple"
+        android:contentDescription="保存日志到 Downloads"
+        android:elevation="12dp"
+        android:padding="0dp"
+        android:scaleType="center"
+        android:src="@drawable/ic_share"
+        android:tint="#FF6E6E6E"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/btnRun"
+        app:layout_constraintHorizontal_bias="1"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Dim overlay: darkens the app 50% while the submenu is visible. -->
+    <View
+        android:id="@+id/dimOverlay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@color/black"
+        android:elevation="30dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+ 

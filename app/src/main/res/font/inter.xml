@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Inter variable font (OFL, rsms/inter v4.1). Declared twice so regular
+     (400) and bold (700) text both resolve from the variable font's weight axis. -->
+<font-family xmlns:android="http://schemas.android.com/apk/res/android">
+    <font
+        android:font="@font/inter_vf"
+        android:fontStyle="normal"
+        android:fontWeight="400" />
+    <font
+        android:font="@font/inter_vf"
+        android:fontStyle="normal"
+        android:fontWeight="700" />
+</font-family>

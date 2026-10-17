@@ -1,0 +1,178 @@
+name: Build
+
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+# The tag push creates the GitHub Release, which needs contents: write. Without this the
+# default token is read-only and softprops/action-gh-release fails with HTTP 403.
+permissions:
+  contents: write
+
+jobs:
+  build-lkms:
+    name: LKMs / ${{ matrix.kmi }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        kmi:
+          - android12-5.10
+          - android13-5.10
+          - android13-5.15
+          - android14-5.15
+          - android14-6.1
+          - android15-6.6
+          - android16-6.12
+          - android17-6.18
+    container:
+      image: ghcr.io/ylarod/ddk-min:${{ matrix.kmi }}-20260828
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build dfroot.ko
+        run: |
+          cd lkm
+          make -j$(nproc)
+          llvm-objcopy --strip-unneeded \
+            -R .comment -R .note.gnu.property \
+            -R .note.Linux -R .note.GNU-stack \
+            -R .BTF -R .BTF.base -R .llvm_addrsig \
+            -R .hyp.text -R .hyp.bss -R .hyp.rodata -R .hyp.event_ids \
+            -R .hyp.patchable_function_entries -R .hyp.data dfroot.ko
+          mkdir -p $GITHUB_WORKSPACE/out
+          cp dfroot.ko $GITHUB_WORKSPACE/out/dfroot-${{ matrix.kmi }}.ko
+          make clean
+
+      - name: Upload dfroot.ko
+        uses: actions/upload-artifact@v7
+        with:
+          name: df-lkm-${{ matrix.kmi }}
+          path: out/dfroot-${{ matrix.kmi }}.ko
+
+  build-dfroot:
+    needs: build-lkms
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate signing config
+        if: github.event_name != 'pull_request'
+        run: |
+          if [ "${{ secrets.KEYSTORE }}" = "" ]; then
+            echo "::error::Signing secrets not configured. KEYSTORE secret is required for release builds."
+            exit 1
+          fi
+
+      - name: Create keystore
+        if: github.event_name != 'pull_request'
+        run: |
+          # app/build.gradle.kts signs with app/keystore.jks (gitignored; the README
+          # documents how to generate it), so the KEYSTORE secret has to be decoded
+          # into app/, not into the repo root the upstream workflow used.
+          echo ${{ secrets.KEYSTORE }} | base64 --decode > app/keystore.jks
+          ls -l app/keystore.jks
+
+      - name: Download DF LKMs
+        uses: actions/download-artifact@v7
+        with:
+          pattern: df-lkm-*
+          merge-multiple: true
+          path: app/src/main/jni/ko/
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Cache cargo (vrext)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/src/main/jni/vrext/target
+          key: vrext-${{ hashFiles('app/src/main/jni/vrext/Cargo.lock') }}-ruststable
+
+      - name: Build vr extractor (libvrext.so)
+        run: |
+          # Ghostlock-vr @423ccb1 = the exact source state of the tested v1.2
+          # release; pinned so offsets are always derived by the audited
+          # extraction code (same tree that produced the 6.6.89 conf with
+          # tracepoint_funcs=72).
+          git clone --quiet https://github.com/DONGDERS/Ghostlock-vr /tmp/ghostlock-app
+          git -C /tmp/ghostlock-app checkout --quiet 423ccb1
+          mkdir -p app/src/main/jni/ghostlock-app/tools
+          cp -a /tmp/ghostlock-app/tools/extract_rs app/src/main/jni/ghostlock-app/tools/extract_rs
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          source "$HOME/.cargo/env"
+          rustup target add aarch64-linux-android
+          "$HOME/.cargo/bin/cargo" install cargo-ndk --locked --quiet
+          cd app/src/main/jni/vrext
+          export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
+          "$HOME/.cargo/bin/cargo" ndk -t arm64-v8a --platform 33 build --release --features http
+          # NB: cwd is app/src/main/jni/vrext, so ../../jniLibs = app/src/main/jniLibs.
+          mkdir -p ../../jniLibs/arm64-v8a
+          cp target/aarch64-linux-android/release/libvrext.so ../../jniLibs/arm64-v8a/
+          ls -l ../../jniLibs/arm64-v8a/libvrext.so
+
+      - name: Build DFRoot APK
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ./gradlew :app:assembleDebug
+          else
+            ./gradlew :app:assembleRelease
+          fi
+
+      - name: Verify APK native libs
+        if: github.event_name != 'pull_request'
+        run: |
+          # Guard: the APK must carry the extractor. The v1.18 misses were a
+          # one-line cp path typo (so landed in jni/jniLibs, read by nobody),
+          # not AGP - this step turns any repeat into a red build.
+          APK=app/build/outputs/apk/release/dirtyfrag.apk
+          if unzip -l "$APK" | grep -q libvrext.so; then
+            echo "libvrext.so present:"
+            unzip -l "$APK" | grep "lib/arm64-v8a"
+          else
+            echo "::error::libvrext.so missing from $APK"
+            unzip -l "$APK" | grep "lib/" || true
+            exit 1
+          fi
+
+      - name: Stage release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          # app/build.gradle.kts always writes app/build/outputs/apk/release/dirtyfrag.apk,
+          # so the versioned asset name comes from the tag (v1.11 -> DirtyFrag-v1.11.apk).
+          cp app/build/outputs/apk/release/dirtyfrag.apk "DirtyFrag-${GITHUB_REF_NAME}.apk"
+          ls -l DirtyFrag-*.apk
+
+      - name: Upload DFRoot APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: DFRoot
+          path: |
+            app/build/outputs/apk/release/dirtyfrag.apk
+            app/build/outputs/apk/debug/dirtyfrag.apk
+
+      - name: Build release notes from CHANGELOG
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          # Take just the section for this tag: v1.11 -> the "## 1.11" block.
+          VER="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VER" '/^## /{p = ($0 == "## " ver); next} p' CHANGELOG.md > RELEASE_NOTES.md
+          wc -l RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: DirtyFrag-*.apk
+          body_path: RELEASE_NOTES.md

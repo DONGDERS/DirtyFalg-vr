@@ -1,0 +1,41 @@
+# Gradle build artifacts
+.classpath
+.project
+.settings/
+.gradle/
+*.iml
+.idea/
+build/
+app/build/
+app/.cxx/
+
+# local settings
+local.properties
+signing.properties
+keystore.jks
+app/keystore.jks
+*.log
+apk/
+
+# LKM build artifacts
+lkm/*.cmd
+lkm/*.o.d
+lkm/*.o
+lkm/*.mod
+lkm/*.mod.c
+lkm/*.lto.o
+lkm/*.lds
+lkm/modules.order
+lkm/Module.symvers
+
+# Generated binaries
+out/
+app/src/main/jni/splicehelper
+app/src/main/jni/ko/*.ko
+
+# stale APK copies dropped at the repo root by hand
+/dirtyfrag.apk
+
+# staged release APK for the GitHub release asset
+/release/
+__pycache__/

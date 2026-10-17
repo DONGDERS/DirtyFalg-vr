@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Badge behind the "hide this card" minus (VIS1.4): the grey OneUI chip from
+     the visualisation, parked inside the card's top-left corner. No ring - the
+     card's own held outline already frames the corner it sits in. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#FF98989B" />
+</shape>
