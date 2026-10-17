@@ -80,8 +80,6 @@ static __nocfi void patch_fn_ret_zero(void *fn)
         pr_warn("dfroot: patch failed at %px\n", fn);
 }
 
-}
-
 /* ---- W1c auto-resolve: BTF --------------------------------------------
  * Read /sys/kernel/btf/vmlinux and take offsetof(struct tracepoint, funcs)
  * straight from the running kernel's own type info - authoritative and
