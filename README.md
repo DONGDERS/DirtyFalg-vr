@@ -145,3 +145,9 @@ next privileged call to the hooked function runs the shellcode, which loads the 
 - Original PoC and various code: https://github.com/lsposed/lspromise
 - SELinux permissive kernel modules and various code: https://github.com/polygraphene/DFReroot
 - Unprivileged XFRM socket method: https://github.com/combeng6th/DirtyInit
+## License
+本项目使用 [GNU General Public License v2.0](LICENSE)，继承自上游
+[diabl0w/DFRoot](https://github.com/diabl0w/DFRoot)（GPL-2.0）。
+
+This project is licensed under the [GNU General Public License v2.0](LICENSE),
+inherited from [diabl0w/DFRoot](https://github.com/diabl0w/DFRoot).
