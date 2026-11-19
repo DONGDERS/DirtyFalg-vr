@@ -45,6 +45,12 @@ public class MainActivity extends AppCompatActivity implements IReporter {
     private ActivityMainBinding binding;
     private final Handler mMain = new Handler(Looper.getMainLooper());
     private final Executor mExec = Executors.newSingleThreadExecutor();
+    /** Separate from mExec so an in-flight exploit run never delays a scan. */
+    private final Executor mScanExec = Executors.newSingleThreadExecutor();
+    /** Result of the last foreground scan; null until one finishes. */
+    private List<SuManagerEntry> suManagers;
+    private boolean suScanInFlight;
+    private final List<Runnable> suScanCallbacks = new ArrayList<>();
     private final StringBuilder logBuffer = new StringBuilder();
     private File lastLogFile;
     private boolean running;
@@ -1586,23 +1592,59 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         return out;
     }
 
-    /** Restores the saved selection, dropping it if that app is gone or no
-     *  longer ships libksud.so. */
+    /** Restores the saved selection right away from the preference, then
+     *  verifies it off the main thread.
+     *
+     *  <p>The probe behind {@link SuManagerBinary} reads whole native libraries
+     *  of every installed app, which is far too slow for onResume(): doing it
+     *  inline left the window blank while the main thread chewed through .so
+     *  files. The saved choice is therefore displayed immediately and only
+     *  withdrawn once a background scan proves that manager is gone.</p> */
     private void loadSuManagerPref() {
         SharedPreferences sp = mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE);
         String saved = sp.getString("su_manager", null);
-        suManagerPkg = null;
-        suManagerLabel = null;
-        if (saved != null) {
-            for (SuManagerEntry e : scanSuManagers()) {
-                if (e.packageName.equals(saved)) {
-                    suManagerPkg = e.packageName;
-                    suManagerLabel = e.label;
-                    break;
+        suManagerPkg = saved;
+        suManagerLabel = saved == null ? null : appLabel(saved);
+        applySuManagerSubtitle();
+
+        final String savedPkg = saved;
+        scanSuManagersInBackground(() -> {
+            if (savedPkg == null) return;
+            boolean stillUsable = false;
+            String label = null;
+            if (suManagers != null) {
+                for (SuManagerEntry e : suManagers) {
+                    if (e.packageName.equals(savedPkg)) {
+                        stillUsable = true;
+                        label = e.label.toString();
+                        break;
+                    }
                 }
             }
-            if (suManagerPkg == null) sp.edit().remove("su_manager").apply();
+            if (stillUsable) {
+                suManagerLabel = label;
+            } else {
+                mDeCtx.getSharedPreferences("dfroot", MODE_PRIVATE)
+                        .edit().remove("su_manager").apply();
+                suManagerPkg = null;
+                suManagerLabel = null;
+            }
+            applySuManagerSubtitle();
+            updateRunButton();
+        });
+    }
+
+    /** Label for a package without touching its native libraries. */
+    private CharSequence appLabel(String pkg) {
+        PackageManager pm = getPackageManager();
+        try {
+            return pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0));
+        } catch (Exception e) {
+            return pkg;
         }
+    }
+
+    private void applySuManagerSubtitle() {
         binding.suManagerSubtitle.setText(suManagerPkg == null
                 ? "未选择 - 必需"
                 : suManagerLabel + "  (" + suManagerPkg + ")");
@@ -1610,11 +1652,39 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                 ? 0xFFE57373 : 0xFF9E9E9E);
     }
 
+    /** Runs the scan off the main thread and marshals the result back. A scan
+     *  already in flight is shared - the callbacks simply queue up behind it. */
+    private void scanSuManagersInBackground(Runnable onDone) {
+        if (onDone != null) suScanCallbacks.add(onDone);
+        if (suScanInFlight) return;
+        suScanInFlight = true;
+        mScanExec.execute(() -> {
+            final List<SuManagerEntry> found = scanSuManagers();
+            mMain.post(() -> {
+                suScanInFlight = false;
+                suManagers = found;
+                List<Runnable> callbacks = new ArrayList<>(suScanCallbacks);
+                suScanCallbacks.clear();
+                for (Runnable cb : callbacks) cb.run();
+            });
+        });
+    }
+
     /** OneUI-style rounded popup list over the dim overlay - same look and feel
      *  as the overflow menu, so the picker does not look like a stock spinner. */
     private void showSuManagerPopup() {
+        // Never probe from the click handler: the first scan of a device with
+        // several multi-megabyte managers takes long enough to freeze the UI.
+        if (suManagers == null) {
+            Toast.makeText(this, "正在扫描已安装的管理器…", Toast.LENGTH_SHORT).show();
+            scanSuManagersInBackground(this::showSuManagerPopup);
+            return;
+        }
+        showSuManagerPopup(suManagers);
+    }
+
+    private void showSuManagerPopup(List<SuManagerEntry> apps) {
         float md = getResources().getDisplayMetrics().density;
-        List<SuManagerEntry> apps = scanSuManagers();
         final android.widget.PopupWindow[] pwRef = {null};
 
         android.widget.LinearLayout box = new android.widget.LinearLayout(this);
@@ -1624,7 +1694,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
 
         if (apps.isEmpty()) {
             TextView none = new TextView(this);
-            none.setText("未发现带 libksud.so 的应用");
+            none.setText("未发现自带 ksud 的应用");
             none.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
             none.setPadding((int) (20 * md), (int) (12 * md), (int) (20 * md), (int) (12 * md));
             none.setTextColor(0xFF6E6E6E);
