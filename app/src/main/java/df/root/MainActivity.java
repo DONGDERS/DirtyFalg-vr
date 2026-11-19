@@ -458,8 +458,9 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         String r = raw == null ? "" : raw.trim();
         if (r.contains("no SU manager selected"))
             return "未选择 SU 管理器";
-        if (r.contains("no longer installed") || r.contains("has no libksud.so"))
-            return "所选 SU 管理器不可用（已卸载或缺少 libksud.so）";
+        if (r.contains("no longer installed") || r.contains("has no libksud.so")
+                || r.contains("no usable ksud binary"))
+            return "所选 SU 管理器不可用（已卸载，或找不到可用的 ksud）";
         if (r.contains("DEVICE NOT VULNERABLE") || r.contains("failed to patch files"))
             return "文件修补失败（内核可能已修补此漏洞）";
         if (r.contains("reading prefs failed"))
@@ -484,9 +485,10 @@ public class MainActivity extends AppCompatActivity implements IReporter {
     private static String zhFailAdvice(String raw) {
         String r = raw == null ? "" : raw.trim();
         if (r.contains("no SU manager selected"))
-            return "建议：先在 SU Manager 卡片选择你的管理器（需自带 libksud.so），再按运行";
-        if (r.contains("no longer installed") || r.contains("has no libksud.so"))
-            return "建议：换一个自带 libksud.so 的 SU 管理器（KernelSU / KernelSU-Next 等）后重试";
+            return "建议：先在 SU Manager 卡片选择你的管理器（需自带 ksud），再按运行";
+        if (r.contains("no longer installed") || r.contains("has no libksud.so")
+                || r.contains("no usable ksud binary"))
+            return "建议：换一个自带 ksud 的 SU 管理器（KernelSU / KernelSU-Next / SukiSU 等）后重试";
         if (r.contains("reading prefs failed"))
             return "建议：确认已在 SU Manager 卡片选择管理器后重试；反复失败请重启后再试";
         if (r.contains("disable modules failed"))
@@ -1568,7 +1570,8 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         }
     }
 
-    /** Every installed app carrying libksud.so in its native lib dir - exactly
+    /** Every installed app whose native lib dir carries a usable ksud binary -
+     *  including managers that rename the library at packaging time. Exactly
      *  the set ExploitRunner.stageAssets() can use, so anything listed here is
      *  guaranteed to pass the runtime check too. */
     private List<SuManagerEntry> scanSuManagers() {
@@ -1576,8 +1579,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         PackageManager pm = getPackageManager();
         for (ApplicationInfo ai : pm.getInstalledApplications(0)) {
             if (ai.packageName.equals(getPackageName())) continue;
-            if (ai.nativeLibraryDir == null) continue;
-            if (!new File(ai.nativeLibraryDir, "libksud.so").exists()) continue;
+            if (SuManagerBinary.find(ai) == null) continue;
             out.add(new SuManagerEntry(ai.packageName, pm.getApplicationLabel(ai)));
         }
         out.sort((a, b) -> a.label.toString().compareToIgnoreCase(b.label.toString()));

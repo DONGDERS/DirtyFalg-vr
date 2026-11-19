@@ -141,8 +141,9 @@ again after every reinstall.
 A: Sorry, there is no fix. Either:
   - your device's kernel is too new
   - your device manufacturer backported the official mitigation
-  - [accidental mitigation](https://github.com/V4bel/dirtyfrag/issues/23#issuecomment-4405314290)
-    (typically seen on kernel 6.1)
+  - other kernel differences may affect whether a device is vulnerable. See the
+    [Linux 6.1 compatibility discussion in V4bel/dirtyfrag](https://github.com/V4bel/dirtyfrag/issues/23)
+    for background; it is not a device compatibility report for this Android fork.
 
 **Q: Log says "SUCCESS" or "ksud exited with error", but I don't have root**
 A: Turn off **Auto reboot** on the Autorun card if it is enabled — a soft reboot that the manager
