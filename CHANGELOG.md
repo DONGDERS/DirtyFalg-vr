@@ -1,14 +1,9 @@
 ## 1.16-vr.2
-Re-release of 1.16-vr: the app version stays 1.16-vr (46), only the SU manager probe
-changed.
-- Fixed the black screen: locating the manager's ksud binary no longer runs on the UI
-  thread. The saved manager is rendered from the preference right away, then verified
-  in the background; the picker shows "scanning" instead of blocking on a scan.
-- Renamed ksud binaries are now matched without reading whole files: a candidate must
-  be a PIE executable (ELF program header with PT_INTERP) and `late-load` is searched
-  inside an 8 MiB window. Directories are cached once known to hold no ksud.
-- Wording unified to "bundled ksud" so renamed libraries are not implied to be
-  libksud.so.
+适配了新版 SukiSU Nova 管理器。
+- 新版 SukiSU Nova 把 ksud 混淆改名（不再是 libksud.so），现在按 ELF 头识别：候选文件必须是带 PT_INTERP 的 PIE 可执行文件，再在 8 MiB 窗口内搜索 `late-load`，不再整文件读取；已知没有 ksud 的目录会缓存结果。
+- 修复黑屏：定位管理器自带的 ksud 不再在主线程执行。已保存的管理器先用偏好立即渲染，再在后台校验；选择器显示"正在扫描"而不是同步阻塞。
+- 文案统一为"自带 ksud"，避免暗示二进制一定叫 libksud.so。
+- 应用版本号不变，仍为 1.16-vr (46)。
 
 ## 1.16-vr (46)
 
