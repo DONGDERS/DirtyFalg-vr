@@ -1,3 +1,15 @@
+## 1.16-vr.2
+Re-release of 1.16-vr: the app version stays 1.16-vr (46), only the SU manager probe
+changed.
+- Fixed the black screen: locating the manager's ksud binary no longer runs on the UI
+  thread. The saved manager is rendered from the preference right away, then verified
+  in the background; the picker shows "scanning" instead of blocking on a scan.
+- Renamed ksud binaries are now matched without reading whole files: a candidate must
+  be a PIE executable (ELF program header with PT_INTERP) and `late-load` is searched
+  inside an 8 MiB window. Directories are cached once known to hold no ksud.
+- Wording unified to "bundled ksud" so renamed libraries are not implied to be
+  libksud.so.
+
 ## 1.16-vr (46)
 
 - Rebased on mitschud v1.16 (upstream DFRoot 4.2-4.5 merged): vendor hardening
